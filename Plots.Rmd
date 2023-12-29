@@ -1,0 +1,1132 @@
+---
+title: "Plots"
+output: html_document
+date: "2023-10-26"
+---
+
+```{r, setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir = "G:/Il mio Drive/Eugenia's Thesis/Data")
+
+```
+
+Libraries
+
+```{r libraries}
+
+if(!require(ggplot2)){install.packages('ggplot2')}
+library(ggplot2)
+#install.packages('ggridges')
+library(ggridges)
+library(viridis)
+#install.packages("hrbrthemes")
+#install.packages('rcompanion')
+#install.packages('labstatR')
+#install.packages('DAAG')
+#install.packages('moments')
+library(DAAG)
+library(moments)
+library(labstatR)
+library(rcompanion)
+#install.packages("ggsci")
+library(ggsci)
+library(nortest)
+
+```
+
+#Plot portfolio HHI per year according to different models  
+
+GLASSO vs other strategies 
+
+```{r Plot HHI}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),7)
+
+HHI_mean_variance <- c((HHI_mean_variance_GLASSO), (HHI_mean_variance_sample_covariance_matrix),( HHI_mean_variance_diagonal),( HHI_mean_variance_GLASSO_FF), (HHI_mean_variance_PCA),  (HHI_equally_weighted_portfolio),(HHI_mean_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama–French', 31), rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, HHI_mean_variance, models )
+
+HHI_mean_variance_plot <- ggplot(df, aes(x = factor(year), y = (HHI_mean_variance), fill = models)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+  labs(subtitle='Mean variance method',
+       x = "Year",
+       y = "HHI"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  ) +  
+  scale_fill_lancet()  +
+  ggtitle("Herfindahl-Hirschman Index (HHI) over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +
+  guides(fill = guide_legend(title = NULL))
+
+```
+GLASSO vs networking GLASSO
+
+```{r Plot HHI}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),8)
+
+HHI_mean_variance <- c((HHI_mean_variance_GLASSO), (HHI_mean_variance_GOLAZO),( HHI_mean_variance_GOLAZO_FF),( HHI_mean_variance_P_pears), (HHI_mean_variance_P_pears_FF),  (HHI_mean_variance_E_pears),(HHI_mean_variance_E_pears_FF),(HHI_mean_variance_GLASSO_FF))
+
+models <- c(rep('GLASSO', 31), rep('Policy and Economic risk Networks GLASSO', 31),rep('Policy and Economic risk Networks GLASSO Fama–French ', 31),rep('Policy risk Network GLASSO  ', 31), rep('Policy risk Network GLASSO Fama–French ', 31),rep('Economic risk Network GLASSO Fama–French', 31),rep('Policy risk Network GLASSO Fama–French ', 31),rep(' GLASSO Fama–French ', 31))
+
+df <- data.frame(year, HHI_mean_variance, models )
+
+HHI_mean_variance_plot_2 <- ggplot(df, aes(x = factor(year), y = HHI_mean_variance, fill = models)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+  labs(subtitle='Mean variance method',
+       x = "Year",
+       y = "HHI"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  ) +  
+  scale_fill_lancet()    +
+  ggtitle("Herfindahl-Hirschman Index (HHI) over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +
+  guides(fill = guide_legend(title = NULL))
+
+```
+GLASSO vs other strategies 
+
+```{r Plot HHI}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),7)
+
+HHI_minimum_variance <- c((HHI_minimum_variance_GLASSO), (HHI_minimum_variance_sample_covariance_matrix),( HHI_minimum_variance_diagonal),( HHI_minimum_variance_GLASSO_FF), (HHI_minimum_variance_PCA),  (HHI_equally_weighted_portfolio),(HHI_minimum_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama–French ', 31), rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, HHI_minimum_variance, models )
+
+HHI_minimum_variance_plot <- ggplot(df, aes(x = factor(year), y = HHI_minimum_variance, fill = models)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+  labs(subtitle='minimum variance method',
+       x = "Year",
+       y = "HHI"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  ) +  
+  scale_fill_lancet()    +
+  ggtitle("Herfindahl-Hirschman Index (HHI) over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +
+  guides(fill = guide_legend(title = NULL)) +
+  coord_cartesian(ylim = c(0, 0.5))
+
+```
+GLASSO vs networking GLASSO
+
+```{r Plot HHI}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),8)
+
+HHI_minimum_variance <- c((HHI_minimum_variance_GLASSO), (HHI_minimum_variance_GOLAZO),( HHI_minimum_variance_GOLAZO_FF),( HHI_minimum_variance_P_pears), (HHI_minimum_variance_P_pears_FF),  (HHI_minimum_variance_E_pears),(HHI_minimum_variance_E_pears_FF),(HHI_minimum_variance_GLASSO_FF))
+
+models <- c(rep('GLASSO', 31), rep('Policy and Economic risk Networks GLASSO', 31),rep('Policy and Economic risk Networks GLASSO Fama–French ', 31),rep('Policy risk Network GLASSO  ', 31), rep('Policy risk Network GLASSO Fama–French ', 31),rep('Economic risk Network GLASSO Fama–French', 31),rep('Policy risk Network GLASSO Fama–French ', 31),rep(' GLASSO Fama–French ', 31))
+
+df <- data.frame(year, HHI_minimum_variance, models )
+
+HHI_minimum_variance_plot_2 <- ggplot(df, aes(x = factor(year), y = HHI_minimum_variance, fill = models)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.8) +
+  labs(subtitle='Minimum variance method',
+       x = "Year",
+       y = "HHI"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  ) +  
+  scale_fill_lancet()    +
+  ggtitle("Herfindahl-Hirschman Index (HHI) over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +
+  guides(fill = guide_legend(title = NULL))
+
+```
+
+#Plot portfolio sharpe ratio per year according to different models  
+
+GLASSO vs other strategies
+
+```{r Plot sharpe ratio}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),7)
+
+Sharpe_ratio_mean_variance <- c((Sharpe_ratio_mean_variance_GLASSO), (Sharpe_ratio_mean_variance_sample_covariance_matrix),( Sharpe_ratio_mean_variance_diagonal),( Sharpe_ratio_mean_variance_GLASSO_FF), (Sharpe_ratio_mean_variance_PCA), (Sharpe_ratio_equally_weighted_portfolio),(Sharpe_ratio_mean_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama-French', 31),  rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, Sharpe_ratio_mean_variance, models )
+
+Sharpe_ratio_mean_variance_plot <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Mean variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()+
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) 
+
+```
+
+```{r Plot sharpe ratio}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),7)
+
+Sharpe_ratio_minimum_variance <- c((Sharpe_ratio_minimum_variance_GLASSO), (Sharpe_ratio_minimum_variance_sample_covariance_matrix),( Sharpe_ratio_minimum_variance_diagonal),( Sharpe_ratio_minimum_variance_GLASSO_FF), (Sharpe_ratio_minimum_variance_PCA), (Sharpe_ratio_equally_weighted_portfolio),(Sharpe_ratio_minimum_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama-French', 31),  rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, Sharpe_ratio_minimum_variance, models )
+
+Sharpe_ratio_minimum_variance_plot <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Minimum variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()  +
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) 
+
+```
+
+GLASSO vs Networking GLASSO
+
+```{r Plot sharpe ratio}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),8)
+
+Sharpe_ratio_minimum_variance <- c((Sharpe_ratio_minimum_variance_GLASSO),( Sharpe_ratio_minimum_variance_GLASSO_FF),( Sharpe_ratio_minimum_variance_GOLAZO), (Sharpe_ratio_minimum_variance_E_pears), (Sharpe_ratio_minimum_variance_P_pears), (Sharpe_ratio_minimum_variance_P_pears_FF),(Sharpe_ratio_minimum_variance_E_pears_FF),(Sharpe_ratio_minimum_variance_GOLAZO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31), rep('Policy and Economic GLASSO', 31), rep('Economic GLASSO ', 31),rep('Policy GLASSO ', 31),rep('Policy GLASSO Fama-French ', 31),rep('Economic GLASSO Fama-French ', 31),rep('Policy and Economic GLASSO Fama-French ', 31))
+
+df <- data.frame(year, Sharpe_ratio_minimum_variance, models )
+
+Sharpe_ratio_minimum_variance_plot_2 <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle = "Minimum variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()  +
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))
+
+```
+
+```{r Plot sharpe ratio}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),8)
+
+Sharpe_ratio_mean_variance <- c((Sharpe_ratio_mean_variance_GLASSO),( Sharpe_ratio_mean_variance_GLASSO_FF),( Sharpe_ratio_mean_variance_GOLAZO), (Sharpe_ratio_mean_variance_E_pears), (Sharpe_ratio_mean_variance_P_pears), (Sharpe_ratio_mean_variance_P_pears_FF),(Sharpe_ratio_mean_variance_E_pears_FF),(Sharpe_ratio_mean_variance_GOLAZO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31), rep('Policy and Economic GLASSO', 31), rep('Economic GLASSO ', 31),rep('Policy GLASSO ', 31),rep('Policy GLASSO Fama-French ', 31),rep('Economic GLASSO Fama-French ', 31),rep('Policy and Economic GLASSO Fama-French ', 31))
+
+df <- data.frame(year, Sharpe_ratio_mean_variance, models )
+
+Sharpe_ratio_mean_variance_plot_2 <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle = "Mean variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))
+
+```
+
+#Plot portfolio standard deviation per year according to different models  
+
+GLASSO vs other strategies
+
+```{r Plot StDev}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),7)
+
+StdDev_mean_variance <- c((StdDev_mean_variance_GLASSO), (StdDev_mean_variance_sample_covariance_matrix),( StdDev_mean_variance_diagonal),( StdDev_mean_variance_GLASSO_FF), (StdDev_mean_variance_PCA), (StdDev_equally_weighted_portfolio),(StdDev_mean_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama-French', 31),  rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, StdDev_mean_variance, models )
+
+StdDev_mean_variance_plot <- ggplot(df, aes(x = year, y = log(StdDev_mean_variance), color = models, shape = models)) +
+  geom_point(size = 3, alpha = 0.7, position = position_jitter(width = 0.2, height = 0)) + 
+  labs(subtitle = "Mean variance method",
+       x = "Year",
+       y = "Log Standard Deviation") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top") +  
+  scale_shape_manual(values = 1:13)  +
+  ggtitle("Standard Deviation over time")+
+  scale_color_lancet()  +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))+
+  guides(shape = guide_legend(title = NULL), color = guide_legend(title = NULL)) 
+
+df$dummy <- 1
+
+StdDev_mean_variance_boxplot <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_mean_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Volatility by Model", subtitle = "Mean variance method", x = "", y = "Log Standard Deviation", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL
+
+```
+
+
+```{r Plot StDev}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),7)
+
+StdDev_minimum_variance <- c((StdDev_minimum_variance_GLASSO), (StdDev_minimum_variance_sample_covariance_matrix),( StdDev_minimum_variance_diagonal),( StdDev_minimum_variance_GLASSO_FF), (StdDev_minimum_variance_PCA), (StdDev_equally_weighted_portfolio),(StdDev_minimum_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama-French', 31),  rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, StdDev_minimum_variance, models )
+
+df$dummy <- 1
+
+StdDev_minimum_variance_boxplot <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_minimum_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Volatility by Model", subtitle = "minimum variance method", x = "", y = "Log Standard Deviation", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL
+
+```
+GLASSO vs Networking GLASSO
+
+```{r Plot StDev}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),8)
+
+StdDev_minimum_variance <- c((StdDev_minimum_variance_GLASSO),( StdDev_minimum_variance_GLASSO_FF),( StdDev_minimum_variance_GOLAZO), (StdDev_minimum_variance_E_pears),(StdDev_minimum_variance_P_pears), (StdDev_minimum_variance_P_pears_FF),(StdDev_minimum_variance_E_pears_FF),(StdDev_minimum_variance_GOLAZO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31), rep('Policy and Economic GLASSO', 31), rep('Economic GLASSO ', 31),rep('Policy GLASSO ', 31),rep('Policy GLASSO Fama-French ', 31),rep('Economic GLASSO Fama-French ', 31),rep('Policy and Economic GLASSO Fama-French ', 31))
+
+df <- data.frame(year, StdDev_minimum_variance, models )
+
+StdDev_minimum_variance_plot_2 <- ggplot(df, aes(x = year, y = log(StdDev_minimum_variance), color = models, shape = models)) +
+  geom_point(size = 3, alpha = 0.7, position = position_jitter(width = 0.2, height = 0)) + 
+  labs(subtitle = "Minimum variance method",
+       x = "Year",
+       y = "Log Standard Deviation") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top") +  
+  scale_color_lancet()   +
+  ggtitle("Standard Deviation over time") +
+  scale_color_manual(values = palette)+  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))+
+  guides(shape = guide_legend(title = NULL), color = guide_legend(title = NULL)) 
+
+df$dummy <- 1
+
+StdDev_minimum_variance_boxplot_2 <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_minimum_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Volatility by Model", subtitle = "Minimum variance method", x = "", y = "Log Standard Deviation", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL
+
+```
+
+```{r Plot StDev}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),8)
+
+StdDev_mean_variance <- c((StdDev_mean_variance_GLASSO),( StdDev_mean_variance_GLASSO_FF),( StdDev_mean_variance_GOLAZO), (StdDev_mean_variance_E_pears),(StdDev_mean_variance_P_pears), (StdDev_mean_variance_P_pears_FF),(StdDev_mean_variance_E_pears_FF),(StdDev_mean_variance_GOLAZO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31), rep('Policy and Economic GLASSO', 31), rep('Economic GLASSO ', 31),rep('Policy GLASSO ', 31),rep('Policy GLASSO Fama-French ', 31),rep('Economic GLASSO Fama-French ', 31),rep('Policy and Economic GLASSO Fama-French ', 31))
+
+df <- data.frame(year, StdDev_mean_variance, models )
+
+StdDev_mean_variance_plot_2 <- ggplot(df, aes(x = year, y = log(StdDev_mean_variance), color = models, shape = models)) +
+  geom_point(size = 3, alpha = 0.7, position = position_jitter(width = 0.2, height = 0)) + 
+  labs(subtitle = "mean variance method",
+       x = "Year",
+       y = "Log Standard Deviation") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "top") +  
+  scale_shape_manual(values = 1:13)  +
+  ggtitle("Standard Deviation over time") +
+  scale_color_lancet()  +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))+
+  guides(shape = guide_legend(title = NULL), color = guide_legend(title = NULL)) 
+
+df$dummy <- 1
+
+StdDev_mean_variance_boxplot_2 <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_mean_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Volatility by Model", subtitle = "mean variance method", x = "", y = "Log Standard Deviation", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL
+
+```
+
+#Plot variance portfolio return rates per year according to different models 
+
+GLASSO vs other strategies
+
+```{r Plot return rates}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),7)
+
+portfolio_return_rate_minimum_variance <- c(cumsum(portfolio_actual_return_rate_minimum_variance_GLASSO), cumsum(portfolio_actual_return_rate_minimum_variance_sample_covariance_matrix),cumsum( portfolio_actual_return_rate_minimum_variance_diagonal),cumsum( portfolio_actual_return_rate_minimum_variance_GLASSO_FF), cumsum(portfolio_actual_return_rate_minimum_variance_PCA), cumsum(portfolio_actual_return_rate_equally_weighted_portfolio),cumsum(portfolio_actual_return_rate_minimum_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama-French', 31),  rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, portfolio_return_rate_minimum_variance, models )
+
+return_rate_minimum_variance_plot <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Minimum variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+
+```{r Plot return rates}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),7)
+
+portfolio_return_rate_mean_variance <- c(cumsum(portfolio_actual_return_rate_mean_variance_GLASSO), cumsum(portfolio_actual_return_rate_mean_variance_sample_covariance_matrix),cumsum( portfolio_actual_return_rate_mean_variance_diagonal),cumsum( portfolio_actual_return_rate_mean_variance_GLASSO_FF), cumsum(portfolio_actual_return_rate_mean_variance_PCA), cumsum(portfolio_actual_return_rate_equally_weighted_portfolio),cumsum(portfolio_actual_return_rate_mean_variance_sample_covariance_matrix_jm))
+
+models <- c(rep('GLASSO', 31), rep('Empirical Covariance Matrix', 31),rep('Independence Assumption', 31),rep('GLASSO Fama-French', 31),  rep('PCA', 31),rep('Equally Weighted Portfolio', 31),rep('No-short-sale Portfolio', 31))
+
+df <- data.frame(year, portfolio_return_rate_mean_variance, models )
+
+return_rate_mean_variance_plot <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Mean variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+
+GLASSO vs Networking GLASSO
+
+```{r Plot return rates}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),8)
+
+portfolio_return_rate_mean_variance <- c(cumsum(portfolio_actual_return_rate_mean_variance_GLASSO),  cumsum(portfolio_actual_return_rate_mean_variance_GLASSO_FF), cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO), cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO_P_pears),cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO_E_pears), cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO_FF_P_pears),cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_FF_E_pears),cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_FF))
+
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31), rep('Policy and Economic GLASSO', 31), rep('Economic GLASSO ', 31),rep('Policy GLASSO ', 31),rep('Policy GLASSO Fama-French ', 31),rep('Economic GLASSO Fama-French ', 31),rep('Policy and Economic GLASSO Fama-French ', 31))
+
+df <- data.frame(year, portfolio_return_rate_mean_variance, models )
+
+Return_rate_mean_variance_plot_2 <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Mean variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+
+```{r Plot return rates}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),8)
+
+portfolio_return_rate_minimum_variance <- c(cumsum(portfolio_actual_return_rate_minimum_variance_GLASSO),  cumsum(portfolio_actual_return_rate_minimum_variance_GLASSO_FF), cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO), cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_P_pears),cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_E_pears), cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_FF_P_pears),cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_FF_E_pears),cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31), rep('Policy and Economic GLASSO', 31), rep('Economic GLASSO ', 31),rep('Policy GLASSO ', 31),rep('Policy GLASSO Fama-French ', 31),rep('Economic GLASSO Fama-French ', 31),rep('Policy and Economic GLASSO Fama-French ', 31))
+
+df <- data.frame(year, portfolio_return_rate_minimum_variance, models )
+
+Return_rate_minimum_variance_plot_2 <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Minimum variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+
+Plot Beta coefficients per year according to different models  
+
+```{r Plot betas}
+
+#2 networks
+year <- rep(seq(from=1986, to=2016),2)
+
+betas <- c( beta_GOLAZO_full[,2], beta_GOLAZO_full[,3])
+
+networks <- c( rep('Policy risk Network', 31), rep('Economic risk Network', 31))
+
+df <- data.frame(year, betas, networks )
+
+beta_2networks <- ggplot(data = df, aes(x = year, y = betas, color = networks)) +
+  geom_line(size = 1) +  
+  labs(title = "Networks Coefficients over Time", subtitle="GLASSO - 2 Networks Model", x = "Year", y = "Beta Coefficients") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top", 
+        legend.title = element_blank(),
+        plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +  
+  scale_color_lancet()  
+
+```
+
+```{r Plot betas}
+
+#1 network
+year <- rep(seq(from=1986, to=2016),2)
+
+betas <- c( beta_GOLAZO_P_pears_full[,2], beta_GOLAZO_E_pears_full[,2])
+
+networks <- c( rep('Policy risk Network', 31), rep('Economic risk Network', 31))
+
+df <- data.frame(year, betas, networks )
+
+beta_1network <- ggplot(data = df, aes(x = year, y = betas, color = networks)) +
+  geom_line(size = 1) +  
+  labs(title = "Networks Coefficients over Time", subtitle="GLASSO - 1 Network Models", x = "Year", y = "Beta Coefficients") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top", 
+        legend.title = element_blank(),
+        plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +  
+  scale_color_lancet()  
+
+```
+
+```{r Plot betas}
+
+#1 network FF
+year <- rep(seq(from=1986, to=2016),2)
+
+betas <- c( beta_GOLAZO_P_pears_full_FF[,2], beta_GOLAZO_E_pears_full_FF[,2])
+
+networks <- c( rep('Policy risk Network ', 31), rep('Economic risk Network', 31))
+
+df <- data.frame(year, betas, networks )
+
+beta_1network_FF <- ggplot(data = df, aes(x = year, y = betas, color = networks)) +
+  geom_line(size = 1) +  
+  labs(title = "Networks Coefficients over Time", subtitle="GLASSO Fama-French - 1 Network Models", x = "Year", y = "Beta Coefficients") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top", 
+        legend.title = element_blank(),
+        plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +  
+  scale_color_lancet()  
+
+```
+
+```{r Plot betas}
+
+#2 networks FF
+year <- rep(seq(from=1986, to=2016),2)
+
+betas <- c( beta_GOLAZO_full_FF[,2], beta_GOLAZO_full_FF[,3])
+
+networks <- c( rep('Policy risk Network ', 31), rep('Economic risk Network ', 31))
+
+df <- data.frame(year, betas, networks )
+
+beta_2networks_FF <- ggplot(data = df, aes(x = year, y = betas, color = networks)) +
+  geom_line(size = 1) +  
+  labs(title = "Networks Coefficients over Time", subtitle="GLASSO Fama-French - 2 Networks Model", x = "Year", y = "Beta Coefficients") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top", 
+        legend.title = element_blank(),
+        plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) +  
+  scale_color_lancet()  
+
+```
+
+Plot weights per year according to different models  
+
+GLASSO vs other strategies
+
+```{r Plot weights}
+
+#minimum variance
+weights_1 <- unlist(weights_minimum_variance_GLASSO)
+weights_2 <- unlist(weights_minimum_variance_sample_covariance_matrix)
+weights_3 <- unlist(weights_minimum_variance_sample_covariance_matrix_jm)
+weights_4 <- unlist(weights_minimum_variance_diagonal)
+weights_5 <- unlist(weights_minimum_variance_GLASSO_FF)
+weights_6 <- unlist(weights_minimum_variance_PCA)
+weights_7 <- unlist(weights_b)
+weights <- (c(weights_1,weights_2,weights_3,weights_4,weights_5,weights_6,weights_7))
+
+models <- c(rep('GLASSO', 5471), rep('Empirical Covariance Matrix', 5471),rep('No-short-sale Portfolio', 5471),rep('Independence Assumption', 5471),rep('GLASSO Fama-French', 5471),  rep('PCA', 5471),rep('Equally Weighted Portfolio', 5471))
+
+df <- data.frame( models,weights)
+
+df$dummy <- 1
+
+weights_plot_minimum_variance_1 <- ggplot(df, aes(x = factor(dummy), y = sqrt(weights), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Model", subtitle = "Minimum variance method", x = "", y = "Sqrt Weights", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()  +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL
+
+```
+
+
+```{r Plot weights}
+
+#minimum variance
+year <- as.factor(c(rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242))) 
+
+weights_1 <- unlist(weights_minimum_variance_sample_covariance_matrix)
+models<-(rep('Empirical Covariance Matrix', 5471))
+
+df <- data.frame(year, models,weights_1)
+
+weights_plot_minimum_variance_3 <- ggplot(df, aes(x = factor(year), y = sqrt(weights_1), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Year and Model", subtitle = "Minimum variance method", x = "Year", y = "Sqrt Weights", fill = "Models") +
+  theme_minimal() +
+  scale_fill_lancet()+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle=element_text(face = "italic", size = 12, hjust = 0.5), legend.position = "top")+
+  guides(fill = guide_legend(title = NULL))
+
+```
+
+```{r Plot weights}
+
+#mean variance
+weights_1 <- unlist(weights_mean_variance_GLASSO)
+weights_2 <- unlist(weights_mean_variance_sample_covariance_matrix)
+weights_3 <- unlist(weights_mean_variance_sample_covariance_matrix_jm)
+weights_4 <- unlist(weights_mean_variance_diagonal)
+weights_5 <- unlist(weights_mean_variance_GLASSO_FF)
+weights_6 <- unlist(weights_mean_variance_PCA)
+weights_7 <- unlist(weights_b)
+weights <- (c(weights_1,weights_2,weights_3,weights_4,weights_5,weights_6,weights_7))
+
+models <- c(rep('GLASSO', 5471), rep('Empirical Covariance Matrix', 5471),rep('No-short-sale Portfolio', 5471),rep('Independence Assumption', 5471),rep('GLASSO Fama-French', 5471),  rep('PCA', 5471),rep('Equally Weighted Portfolio', 5471))
+
+df <- data.frame( models,weights)
+
+df$dummy <- 1
+
+weights_plot_mean_variance_1 <- ggplot(df, aes(x = factor(dummy), y = sqrt(weights), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Model", subtitle = "mean variance method", x = "", y = "Sqrt Weights", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()+
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL  
+
+```
+
+```{r Plot weights}
+
+#mean variance
+year <- as.factor(c(rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242))) 
+
+weights_1 <- unlist(weights_mean_variance_sample_covariance_matrix)
+models<-(rep('Empirical Covariance Matrix', 5471))
+
+df <- data.frame(year, models,weights_1)
+
+weights_plot_mean_variance_7 <- ggplot(df, aes(x = factor(year), y = sqrt(weights_1), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Year and Model", subtitle = "Mean variance method", x = "Year", y = "Sqrt Weights", fill = "Models") +
+  theme_minimal() +
+  scale_fill_lancet()+
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle=element_text(face = "italic", size = 12, hjust = 0.5), legend.position = "top")+
+  guides(fill = guide_legend(title = NULL))
+
+```
+
+GLASSO vs Networking GLASSO
+
+```{r Plot weights}
+
+#mean variance
+weights_1 <- unlist(weights_mean_variance_GLASSO)
+weights_2 <- unlist(weights_mean_variance_GOLAZO)
+weights_3 <- unlist(weights_mean_variance_GLASSO_FF)
+weights_4 <- unlist(weights_mean_variance_GOLAZO_FF)
+weights_5 <- unlist(weights_mean_variance_GOLAZO_P_pears)
+weights_6 <- unlist(weights_mean_variance_GOLAZO_P_pears_FF)
+weights_7 <- unlist(weights_mean_variance_GOLAZO_E_pears)
+weights_8 <- unlist(weights_mean_variance_GOLAZO_E_pears_FF)
+weights <- (c(weights_1,weights_2,weights_3,weights_4,weights_5,weights_6,weights_7,weights_8))
+
+models <- c(rep('GLASSO', 5471), rep('GLASSO Fama-French', 5471), rep('Policy and Economic risk Networks GLASSO', 5471), rep('Economic risk Network GLASSO ', 5471),rep('Policy risk Network GLASSO ', 5471),rep('Policy risk Network GLASSO Fama-French ', 5471),rep('Economic risk Network GLASSO Fama-French ', 5471),rep('Policy and Economic risk Networks GLASSO Fama-French ', 5471))
+
+df <- data.frame( models,weights)
+
+df$dummy <- 1
+
+weights_plot_mean_variance_2 <- ggplot(df, aes(x = factor(dummy), y = sqrt(weights), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Model", subtitle = "Mean variance method", x = "", y = "Sqrt Weights", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL
+
+```
+
+```{r Plot weights}
+
+#minimum variance
+weights_1 <- unlist(weights_minimum_variance_GLASSO)
+weights_2 <- unlist(weights_minimum_variance_GOLAZO)
+weights_3 <- unlist(weights_minimum_variance_GLASSO_FF)
+weights_4 <- unlist(weights_minimum_variance_GOLAZO_FF)
+weights_5 <- unlist(weights_minimum_variance_GOLAZO_P_pears)
+weights_6 <- unlist(weights_minimum_variance_GOLAZO_P_pears_FF)
+weights_7 <- unlist(weights_minimum_variance_GOLAZO_E_pears)
+weights_8 <- unlist(weights_minimum_variance_GOLAZO_E_pears_FF)
+weights <- (c(weights_1,weights_2,weights_3,weights_4,weights_5,weights_6,weights_7,weights_8))
+
+models <- c(rep('GLASSO', 5471), rep('GLASSO Fama-French', 5471), rep('Policy and Economic risk Networks GLASSO', 5471), rep('Economic risk Network GLASSO ', 5471),rep('Policy risk Network GLASSO ', 5471),rep('Policy risk Network GLASSO Fama-French ', 5471),rep('Economic risk Network GLASSO Fama-French ', 5471),rep('Policy and Economic risk Networks GLASSO Fama-French ', 5471))
+
+df <- data.frame( models,weights)
+
+df$dummy <- 1
+
+weights_plot_minimum_variance_4 <- ggplot(df, aes(x = factor(dummy), y = sqrt(weights), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Model", subtitle = "Minimum variance method", x = "", y = "Sqrt Weights", fill = "") + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()  
+  )
+
+df$dummy <- NULL  
+
+```
+
+```{r Plot weights}
+
+#minimum variance
+year <- as.factor(c(rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242),rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242),rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242))) 
+
+weights_1 <- unlist(weights_minimum_variance_GLASSO_FF)
+weights_2 <- unlist(weights_minimum_variance_GOLAZO_FF)
+weights_3 <- unlist(weights_minimum_variance_GOLAZO_E_pears_FF)
+weights <- (c(weights_1,weights_2, weights_3))
+models <- c(rep('GLASSO Fama-French', 5471),rep('Policy and Economic GLASSO Fama-French', 5471),rep('Economic GLASSO Fama-French ', 5471))
+
+df <- data.frame(year, models,weights)
+
+weights_plot_minimum_variance_2 <- ggplot(df, aes(x = factor(year), y = sqrt(weights), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Year and Model", subtitle = "Minimum variance method", x = "Year", y = "Sqrt Weights", fill = "Models") +
+  theme_minimal()+
+  scale_fill_lancet() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle=element_text(face = "italic", size = 12, hjust = 0.5), legend.position = "top")+
+  guides(fill = guide_legend(title = NULL))
+
+```
+
+```{r Plot weights}
+
+#mean variance
+year <- as.factor(c(rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242),rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242),rep(1986,89),rep(1987,109),rep(1988,116),rep(1989,118),rep(1990,123),rep(1991,132),rep(1992,135),rep(1993,136),rep(1994,135),rep(1995,137),rep(1996,139),rep(1997,142),rep(1998,145),rep(1999,153),rep(2000,159),rep(2001,159),rep(2002,176),rep(2003,199),rep(2004,210),rep(2005,209),rep(2006,207),rep(2007,210),rep(2008,214),rep(2009,220),rep(2010,234),rep(2011,240),rep(2012,244),rep(2013,246),rep(2014,249),rep(2015,244),rep(2016,242))) 
+
+weights_1 <- unlist(weights_mean_variance_GLASSO_FF)
+weights_2 <- unlist(weights_mean_variance_GOLAZO_FF)
+weights_3 <- unlist(weights_mean_variance_GOLAZO_E_pears_FF)
+weights <- (c(weights_1,weights_2, weights_3))
+models <- c(rep('GLASSO Fama-French', 5471),rep('Policy and Economic GLASSO Fama-French', 5471),rep('Economic GLASSO Fama-French ', 5471))
+
+df <- data.frame(year, models,weights)
+
+weights_plot_mean_variance_5 <- ggplot(df, aes(x = factor(year), y = sqrt(weights), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  labs(title = "Distribution of Weights by Year and Model", subtitle = "Mean variance method", x = "Year", y = "Sqrt Weights", fill = "Models") +
+  theme_minimal()+
+  scale_fill_lancet() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), plot.title = element_text(face = "bold", size = 16, hjust = 0.5), plot.subtitle=element_text(face = "italic", size = 12, hjust = 0.5), legend.position = "top")+
+  guides(fill = guide_legend(title = NULL))
+
+```
+
+Percentiles and min/max values
+
+```{r Percentiles, min/max values and Herfindhal index}
+
+#mean variance
+percentiles_mean_variance_GLASSO_no_network <- quantile(unlist(weights_mean_variance_GLASSO), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_no_network <- max(unlist(weights_mean_variance_GLASSO))
+min_value_mean_variance_GLASSO_no_network <- min(unlist(weights_mean_variance_GLASSO))
+
+percentiles_mean_variance_GLASSO_2_network <- quantile(unlist(weights_mean_variance_GOLAZO), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_2_network <- max(unlist(weights_mean_variance_GOLAZO))
+min_value_mean_variance_GLASSO_2_network <- min(unlist(weights_mean_variance_GOLAZO))
+
+percentiles_mean_variance_sample_covariance_matrix <- quantile(unlist(weights_mean_variance_sample_covariance_matrix), c(.01, .05, .95, 0.99))
+max_value_mean_variance_sample_covariance_matrix <- max(unlist(weights_mean_variance_sample_covariance_matrix))
+min_value_mean_variance_sample_covariance_matrix <- min(unlist(weights_mean_variance_sample_covariance_matrix))
+
+percentiles_mean_variance_sample_covariance_matrix_jm <- quantile(unlist(weights_mean_variance_sample_covariance_matrix_jm), c(.01, .05, .95, 0.99))
+max_value_mean_variance_sample_covariance_matrix_jm <- max(unlist(weights_mean_variance_sample_covariance_matrix_jm))
+min_value_mean_variance_sample_covariance_matrix_jm <- min(unlist(weights_mean_variance_sample_covariance_matrix_jm))
+
+percentiles_mean_variance_diagonal <- quantile(unlist(weights_mean_variance_diagonal), c(.01, .05, .95, 0.99))
+max_value_mean_variance_diagonal <- max(unlist(weights_mean_variance_diagonal))
+min_value_mean_variance_diagonal <- min(unlist(weights_mean_variance_diagonal))
+
+percentiles_mean_variance_GLASSO_FF_no_network <- quantile(unlist(weights_mean_variance_GLASSO_FF), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_FF_no_network <- max(unlist(weights_mean_variance_GLASSO_FF))
+min_value_mean_variance_GLASSO_FF_no_network <- min(unlist(weights_mean_variance_GLASSO_FF))
+
+percentiles_mean_variance_GLASSO_2_networks <- quantile(unlist(weights_mean_variance_GOLAZO), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_2_networks <- max(unlist(weights_mean_variance_GOLAZO))
+min_value_mean_variance_GLASSO_2_networks <- min(unlist(weights_mean_variance_GOLAZO))
+
+percentiles_mean_variance_GLASSO_FF_2_networks <- quantile(unlist(weights_mean_variance_GOLAZO_FF), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_FF_2_networks <- max(unlist(weights_mean_variance_GOLAZO_FF))
+min_value_mean_variance_GLASSO_FF_2_networks <- min(unlist(weights_mean_variance_GOLAZO_FF))
+
+percentiles_mean_variance_equally_weighted_portfolio <- quantile(unlist(weights_b), c(.01, .05, .95, 0.99))
+max_value_mean_variance_equally_weighted_portfolio <- max(unlist(weights_b))
+min_value_mean_variance_equally_weighted_portfolio <- min(unlist(weights_b))
+
+percentiles_mean_variance_GLASSO_P_pears_network <- quantile(unlist(weights_mean_variance_GOLAZO_P_pears), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_P_pears_network <- max(unlist(weights_mean_variance_GOLAZO_P_pears))
+min_value_mean_variance_GLASSO_P_pears_network <- min(unlist(weights_mean_variance_GOLAZO_P_pears))
+
+percentiles_mean_variance_GLASSO_FF_P_pears_network <- quantile(unlist(weights_mean_variance_GOLAZO_P_pears_FF), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_FF_P_pears_network <- max(unlist(weights_mean_variance_GOLAZO_P_pears_FF))
+min_value_mean_variance_GLASSO_FF_P_pears_network <- min(unlist(weights_mean_variance_GOLAZO_P_pears_FF))
+
+percentiles_mean_variance_GLASSO_E_pears_network <- quantile(unlist(weights_mean_variance_GOLAZO_E_pears), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_E_pears_network < -max(unlist(weights_mean_variance_GOLAZO_E_pears))
+min_value_mean_variance_GLASSO_E_pears_network <- min(unlist(weights_mean_variance_GOLAZO_E_pears))
+
+percentiles_mean_variance_GLASSO_FF_E_pears_network <- quantile(unlist(weights_mean_variance_GOLAZO_E_pears_FF), c(.01, .05, .95, 0.99))
+max_value_mean_variance_GLASSO_FF_E_pears_network <- max(unlist(weights_mean_variance_GOLAZO_E_pears_FF))
+min_value_mean_variance_GLASSO_FF_E_pears_network <- min(unlist(weights_mean_variance_GOLAZO_E_pears_FF))
+
+percentiles_mean_variance_PCA <- quantile(unlist(weights_mean_variance_PCA), c(.01, .05, .95, 0.99))
+max_value_mean_variance_PCA <- max(unlist(weights_mean_variance_PCA))
+min_value_mean_variance_PCA <- min(unlist(weights_mean_variance_PCA))
+
+data_percentiles_mean_variance <- data.frame(
+  Models = c("GLASSO", "Empirical Covariance Matrix", "No-short-sale Portfolio", "Independence Assumption", "GLASSO Fama-French", "Equally Weighted Portfolio", "PCA"),
+  "1%" = c(percentiles_mean_variance_GLASSO_no_network[1],  percentiles_mean_variance_sample_covariance_matrix[1], percentiles_mean_variance_sample_covariance_matrix_jm[1], percentiles_mean_variance_diagonal[1], percentiles_mean_variance_GLASSO_FF_no_network[1],  percentiles_mean_variance_equally_weighted_portfolio[1], percentiles_mean_variance_PCA[1] ),  
+  "5%" = c(percentiles_mean_variance_GLASSO_no_network[2],  percentiles_mean_variance_sample_covariance_matrix[2], percentiles_mean_variance_sample_covariance_matrix_jm[2], percentiles_mean_variance_diagonal[2], percentiles_mean_variance_GLASSO_FF_no_network[2],  percentiles_mean_variance_equally_weighted_portfolio[2], percentiles_mean_variance_PCA[2]),
+  "95%" = c(percentiles_mean_variance_GLASSO_no_network[3], percentiles_mean_variance_sample_covariance_matrix[3], percentiles_mean_variance_sample_covariance_matrix_jm[3], percentiles_mean_variance_diagonal[3], percentiles_mean_variance_GLASSO_FF_no_network[3],  percentiles_mean_variance_equally_weighted_portfolio[3], percentiles_mean_variance_PCA[3]),
+  "99%" = c(percentiles_mean_variance_GLASSO_no_network[4],  percentiles_mean_variance_sample_covariance_matrix[4], percentiles_mean_variance_sample_covariance_matrix_jm[4], percentiles_mean_variance_diagonal[4], percentiles_mean_variance_GLASSO_FF_no_network[4],  percentiles_mean_variance_equally_weighted_portfolio[4], percentiles_mean_variance_PCA[4] ), minimum = c(min_value_mean_variance_GLASSO_no_network, min_value_mean_variance_sample_covariance_matrix,min_value_mean_variance_sample_covariance_matrix_jm, min_value_mean_variance_diagonal, min_value_mean_variance_GLASSO_FF_no_network, min_value_mean_variance_equally_weighted_portfolio, min_value_mean_variance_PCA),
+  maximum = c(max_value_mean_variance_GLASSO_no_network, max_value_mean_variance_sample_covariance_matrix,max_value_mean_variance_sample_covariance_matrix_jm, max_value_mean_variance_diagonal, max_value_mean_variance_GLASSO_FF_no_network,max_value_mean_variance_equally_weighted_portfolio, max_value_mean_variance_PCA), HHI = c(mean(HHI_mean_variance_GLASSO), mean(HHI_mean_variance_sample_covariance_matrix), mean(HHI_mean_variance_sample_covariance_matrix_jm), mean(HHI_mean_variance_diagonal), mean(HHI_mean_variance_GLASSO_FF), mean(HHI_equally_weighted_portfolio), mean(HHI_mean_variance_PCA))
+)
+
+#minimum variance
+percentiles_minimum_variance_GLASSO_no_network <- quantile(unlist(weights_minimum_variance_GLASSO), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_no_network <- max(unlist(weights_minimum_variance_GLASSO))
+min_value_minimum_variance_GLASSO_no_network <- min(unlist(weights_minimum_variance_GLASSO))
+
+percentiles_minimum_variance_GLASSO_2_network <- quantile(unlist(weights_minimum_variance_GOLAZO), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_2_network <- max(unlist(weights_minimum_variance_GOLAZO))
+min_value_minimum_variance_GLASSO_2_network <- min(unlist(weights_minimum_variance_GOLAZO))
+
+percentiles_minimum_variance_sample_covariance_matrix <- quantile(unlist(weights_minimum_variance_sample_covariance_matrix), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_sample_covariance_matrix <- max(unlist(weights_minimum_variance_sample_covariance_matrix))
+min_value_minimum_variance_sample_covariance_matrix <- min(unlist(weights_minimum_variance_sample_covariance_matrix))
+
+percentiles_minimum_variance_sample_covariance_matrix_jm <- quantile(unlist(weights_minimum_variance_sample_covariance_matrix_jm), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_sample_covariance_matrix_jm <- max(unlist(weights_minimum_variance_sample_covariance_matrix_jm))
+min_value_minimum_variance_sample_covariance_matrix_jm <- min(unlist(weights_minimum_variance_sample_covariance_matrix_jm))
+
+percentiles_minimum_variance_diagonal <- quantile(unlist(weights_minimum_variance_diagonal), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_diagonal <- max(unlist(weights_minimum_variance_diagonal))
+min_value_minimum_variance_diagonal <- min(unlist(weights_minimum_variance_diagonal))
+
+percentiles_minimum_variance_GLASSO_FF_no_network <- quantile(unlist(weights_minimum_variance_GLASSO_FF), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_FF_no_network <- max(unlist(weights_minimum_variance_GLASSO_FF))
+min_value_minimum_variance_GLASSO_FF_no_network <- min(unlist(weights_minimum_variance_GLASSO_FF))
+
+percentiles_minimum_variance_GLASSO_2_networks <- quantile(unlist(weights_minimum_variance_GOLAZO), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_2_networks <- max(unlist(weights_minimum_variance_GOLAZO))
+min_value_minimum_variance_GLASSO_2_networks <- min(unlist(weights_minimum_variance_GOLAZO))
+
+percentiles_minimum_variance_GLASSO_FF_2_networks <- quantile(unlist(weights_minimum_variance_GOLAZO_FF), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_FF_2_networks <- max(unlist(weights_minimum_variance_GOLAZO_FF))
+min_value_minimum_variance_GLASSO_FF_2_networks <- min(unlist(weights_minimum_variance_GOLAZO_FF))
+
+percentiles_minimum_variance_equally_weighted_portfolio <- quantile(unlist(weights_b), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_equally_weightes_portfolio <- max(unlist(weights_b))
+min_value_minimum_variance_GLASSO_equally_weighted_portfolio <- min(unlist(weights_b))
+
+percentiles_minimum_variance_GLASSO_P_pears_network <- quantile(unlist(weights_minimum_variance_GOLAZO_P_pears), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_P_pears_network <- max(unlist(weights_minimum_variance_GOLAZO_P_pears))
+min_value_minimum_variance_GLASSO_P_pears_network <- min(unlist(weights_minimum_variance_GOLAZO_P_pears))
+
+percentiles_minimum_variance_GLASSO_FF_P_pears_network <- quantile(unlist(weights_minimum_variance_GOLAZO_P_pears_FF), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_FF_P_pears_network <- max(unlist(weights_minimum_variance_GOLAZO_P_pears_FF))
+min_value_minimum_variance_GLASSO_FF_P_pears_network <- min(unlist(weights_minimum_variance_GOLAZO_P_pears_FF))
+
+percentiles_minimum_variance_GLASSO_E_pears_network <- quantile(unlist(weights_minimum_variance_GOLAZO_E_pears), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_E_pears_network <- max(unlist(weights_minimum_variance_GOLAZO_E_pears))
+min_value_minimum_variance_GLASSO_E_pears_network <- min(unlist(weights_minimum_variance_GOLAZO_E_pears))
+
+percentiles_minimum_variance_GLASSO_FF_E_pears_network <- quantile(unlist(weights_minimum_variance_GOLAZO_E_pears_FF), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_GLASSO_FF_E_pears_network <- max(unlist(weights_minimum_variance_GOLAZO_E_pears_FF))
+min_value_minimum_variance_GLASSO_FF_E_pears_network <- min(unlist(weights_minimum_variance_GOLAZO_E_pears_FF))
+
+percentiles_minimum_variance_PCA <- quantile(unlist(weights_minimum_variance_PCA), c(.01, .05, .95, 0.99))
+max_value_minimum_variance_PCA <- max(unlist(weights_minimum_variance_PCA))
+min_value_minimum_variance_PCA <- min(unlist(weights_minimum_variance_PCA))
+
+data_percentiles_minimum_variance <- data.frame(
+  Models = c("GLASSO", "Empirical Covariance Matrix", "No-short-sale Portfolio", "Independence Assumption", "GLASSO Fama-French", "Equally Weighted Portfolio", "PCA"),
+  "1%" = c(percentiles_minimum_variance_GLASSO_no_network[1],  percentiles_minimum_variance_sample_covariance_matrix[1], percentiles_minimum_variance_sample_covariance_matrix_jm[1], percentiles_minimum_variance_diagonal[1], percentiles_minimum_variance_GLASSO_FF_no_network[1],  percentiles_minimum_variance_equally_weighted_portfolio[1], percentiles_minimum_variance_PCA[1] ),  
+  "5%" = c(percentiles_minimum_variance_GLASSO_no_network[2],  percentiles_minimum_variance_sample_covariance_matrix[2], percentiles_minimum_variance_sample_covariance_matrix_jm[2], percentiles_minimum_variance_diagonal[2], percentiles_minimum_variance_GLASSO_FF_no_network[2],  percentiles_minimum_variance_equally_weighted_portfolio[2], percentiles_minimum_variance_PCA[2]),
+  "95%" = c(percentiles_minimum_variance_GLASSO_no_network[3], percentiles_minimum_variance_sample_covariance_matrix[3], percentiles_minimum_variance_sample_covariance_matrix_jm[3], percentiles_minimum_variance_diagonal[3], percentiles_minimum_variance_GLASSO_FF_no_network[3],  percentiles_minimum_variance_equally_weighted_portfolio[3], percentiles_minimum_variance_PCA[3]),
+  "99%" = c(percentiles_minimum_variance_GLASSO_no_network[4],  percentiles_minimum_variance_sample_covariance_matrix[4], percentiles_minimum_variance_sample_covariance_matrix_jm[4], percentiles_minimum_variance_diagonal[4], percentiles_minimum_variance_GLASSO_FF_no_network[4],  percentiles_minimum_variance_equally_weighted_portfolio[4], percentiles_minimum_variance_PCA[4] ), minimum = c(min_value_minimum_variance_GLASSO_no_network, min_value_minimum_variance_sample_covariance_matrix,min_value_minimum_variance_sample_covariance_matrix_jm, min_value_minimum_variance_diagonal, min_value_minimum_variance_GLASSO_FF_no_network, min_value_minimum_variance_GLASSO_equally_weighted_portfolio, min_value_minimum_variance_PCA),
+  maximum = c(max_value_minimum_variance_GLASSO_no_network, max_value_minimum_variance_sample_covariance_matrix,max_value_minimum_variance_sample_covariance_matrix_jm, max_value_minimum_variance_diagonal, max_value_minimum_variance_GLASSO_FF_no_network,max_value_minimum_variance_GLASSO_equally_weightes_portfolio, max_value_minimum_variance_PCA), HHI = c(mean(HHI_minimum_variance_GLASSO), mean(HHI_minimum_variance_sample_covariance_matrix), mean(HHI_minimum_variance_sample_covariance_matrix_jm), mean(HHI_minimum_variance_diagonal), mean(HHI_minimum_variance_GLASSO_FF), mean(HHI_equally_weighted_portfolio), mean(HHI_minimum_variance_PCA))
+)
+
+```
+
+Plot densities 
+
+```{r Plot densities}
+
+x_limits <- range(sapply(Y_repeats, function(x) c(density(unlist(x))$x)))
+y_limits <- range(sapply(Y_repeats, function(x) c(density(unlist(x))$y)))
+y_limits <- y_limits + c(-y_padding, y_padding)
+
+for (k in 1:31) {
+  log_data <- log(unlist(Y_repeats[[k]], use.names = FALSE))
+  log_data <- log_data[!is.na(log_data) & is.finite(log_data)]
+  
+  if (length(log_data) > 0) {
+    dens_log <- density(log_data)
+    plot(dens_log, col = 'blue', main = paste("Density of Log Distribution", k))
+    
+    curve(dnorm(x, mean = mean(log_data), sd = sd(log_data)), col = 'red', add = TRUE)
+    curve(dt(x, df = 5), col = 'green', add = TRUE)
+    curve(dt(x, df = 10), col = 'purple', add = TRUE)
+    
+    legend("topleft", legend = c("Log Density", "Log Normal Density", "Log t-Student Density (df=5)", "Log t-Student Density (df=10)"), 
+           col = c("blue", "red", "green", "purple"), lty = 1:1)
+  } else {
+    
+    cat("No valid data for plot", k, "\n")
+  }
+} 
+
+curtosi <- rep(NA,31)
+pvalue <- rep(NA,31)
+for (k in 1:31){
+  curtosi[k] <- kurt(unlist(Y_repeats[[k]]))
+  pvalue[k] <- anscombe.test(unlist(Y_repeats[[k]]))$p.value
+}
+
+for (k in 1:31){
+  pvalue[k]<-ad.test(unlist(Y_repeats[[k]]))$p.value
+}
+
+```
