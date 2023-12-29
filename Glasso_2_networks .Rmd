@@ -1,0 +1,1019 @@
+---
+title: "1985-2016_2_networks"
+output: html_document
+date: "2023-10-15"
+---
+
+Directory
+
+```{r, setup, include=FALSE}
+
+knitr::opts_knit$set(root.dir = "G:/Il mio Drive/Eugenia's Thesis/Data")
+
+```
+
+Packages
+
+```{r packages, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+library(golazo)
+library(mvtnorm)
+library(graphics)
+#install.packages("NMOF")
+library(NMOF)
+library(rBayesianOptimization)
+library(PerformanceAnalytics)
+library(PortfolioAnalytics)
+
+```
+
+EBIC evaluation functions
+
+```{r functions, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+ebic_eval_GLASSO_unstandarised <- function(Y, res, n, beta0, ebic.gamma, edge.tol, tol){
+  p <- ncol(Y)
+  cov_Y <- cov(Y)
+  #R <- stats::cov2cor(cov_Y)
+  #res <- golazo(R, L = -U, U = U, verbose = FALSE, tol = tol)
+  K <- res$K
+  S <- cor2cov(res$Sig, diag(cov_Y))## unstandardrised
+  log_likelihood_norm <- sum(mvtnorm::dmvnorm(Y, mean = rep(0, p), sigma = S, log = TRUE))
+  KR <- stats::cov2cor((K))         #to make edge count independend of scalings
+  nedg <- length(which(abs(KR[upper.tri(abs(KR), diag = FALSE)]) > edge.tol))
+  p <- ncol(Y)
+  ebic <- -2*log_likelihood_norm  + nedg * (log(n) + 4 * ebic.gamma * log(p))
+  return(ebic)  
+}
+
+ebic_eval <- function(n, R, U, ebic.gamma, edge.tol, tol){
+  res <- golazo(R, L = -U, U = U, verbose = FALSE, tol = tol)
+  K <- res$K
+  KR <- stats::cov2cor(K)         #to make edge count independend of scalings
+  nedg <- length(which(abs(KR[upper.tri(abs(KR), diag = FALSE)]) > edge.tol))
+  p <- ncol(R)
+  ebic <- -(n)*(log(det(K)) - sum(R*K)) + nedg * (log(n) + 4 * ebic.gamma * log(p))
+  return(ebic)   
+}
+
+ebic_eval_BayesOpt <- function(n, R, beta0, ebic.gamma, edge.tol, tol){
+  p <- nrow(R)
+  U <- matrix(exp(beta0), nrow = p, ncol = p) 
+  diag(U) <- 0
+  ebic <- ebic_eval(n, R, U, ebic.gamma, edge.tol, tol)
+  return(list("Score" = -ebic, "Pred" = 0))   
+}
+
+ebic_eval_network <- function(n, R, A, beta0, beta1, ebic.gamma, edge.tol, tol){
+  U <- exp(beta0 + beta1*A)   
+  diag(U) <- 0
+  return(ebic_eval(n, R, U, ebic.gamma, edge.tol, tol))
+}
+
+ebic_eval_network_BayesOpt <- function(n, R, A, beta0, beta1, ebic.gamma, edge.tol, tol){
+  U <- exp(beta0 + beta1*A)           #### remember a = beta1, b= beta0
+  #U <- exp(beta0)*(1 - A) + exp(beta1)*A
+  diag(U) <- 0
+  ebic <- ebic_eval(n, R, U, ebic.gamma, edge.tol, tol)
+  return(list("Score" = -ebic, "Pred" = 0))
+}
+
+ebic_eval_two_networks <- function(n, R, A1, A2, beta0, beta1, beta2, ebic.gamma, edge.tol, tol){
+  U <- exp(beta0 + beta1*A1 + beta2*A2)  
+  diag(U) <- 0
+  return(ebic_eval(n, R, U, ebic.gamma, edge.tol, tol))
+}
+
+ebic_eval_two_networks_BayesOpt <- function(n, R, A1, A2, beta0, beta1, beta2, ebic.gamma, edge.tol, tol){
+  U <- exp(beta0 + beta1*A1 + beta2*A2)           #### remember a = beta1, b= beta0
+  diag(U) <- 0
+  try(ebic <- ebic_eval(n, R, U, ebic.gamma, edge.tol, tol))
+  return(list("Score" = -ebic, "Pred" = 0))
+}
+
+
+standardise_network_matrix_tri <- function(A) {
+  p <- nrow(A)
+  
+  A_tri <- A[upper.tri(A)]
+  bar_A_tri <- mean(A_tri)
+  S2_A_tri <- 1/length(A_tri)*sum((A_tri - bar_A_tri)^2)
+  
+  return((A - bar_A_tri)/sqrt(S2_A_tri))
+}
+
+## Turning the correlation matrix given by the golazo function back to a covariance matrix, useful in out-of-sample-llh
+cor2cov <- function(Theta_cor, sigma2_vect){
+  # Theta_cor is correlation matrix, sqrt(sigma2_vect) is the standard deviations of each variable
+  p <- nrow(Theta_cor)
+  Theta_cov <- matrix(NA, nrow = p, ncol = p)
+  for(i in 1:p){
+    Theta_cov[, i] <- Theta_cor[,i]*sqrt(sigma2_vect[i])*sqrt(sigma2_vect)   
+  }
+  return(Theta_cov)
+}
+
+
+threshold <- function(Rho_mat, threshold){
+  return(Rho_mat*(abs(Rho_mat) >= threshold))
+}
+
+
+# No Network matrix
+beta0_max_GLASSO <- function(R){
+  return(log(max(abs(R - diag(diag(R))))))## check we can irgnore diags
+  #return(log(max(max(diag(R)^2) - abs(R)))) ## Piotr's updated bound!
+}
+
+```
+
+Hyparameters
+
+Need to decide whether to use EBIC.gamma = 0 or 0.5! EBIC.gamma = 0 means we use the BIC
+
+```{r hyperparameters, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+ebic.gamma <- 0           # set to zero to get BIC
+edge.tol <-  1e-6         # be consistent with GLASSO+EBIC method
+
+```
+
+Loading data (log-return in %) from 1984 to 2016
+
+```{r loading data}
+
+sp500_CIK <- read.csv("SP500_new.csv")
+
+```
+
+Extracting years of interest and keeping only the stocks always present over those years
+
+```{r clearing data}
+
+start_year = 1985
+end_year = 2016
+
+data <- sp500_CIK[sp500_CIK$Year %in% (start_year:end_year),]
+
+#vector of row coordinates of the first observation per year (1985-2015)
+i <- c(1,253,506,759,1012,1264,1517,1770,2024,2278,2529,2781,3035,3288,3540,3792,4044,4292,4544,4796,5048,5300,5551,5802,6055,6307,6559,6811,7061,7313,7565)
+
+#vector of row coordinates of the last observation per year (1986-2016)
+j <- c(505,758,1011,1263,1516,1769,2023,2276,2528,2780,3034,3287,3539,3791,4043,4291,4543,4795,5047,5299,5550,5801,6054,6306,6558,6810,7060,7312,7564,7816,7895)
+to_keep <- list()
+for (k in 1:length(j)){
+  #we only keep companies that are present over 2 consecutive years
+  to_keep[[k]] = apply(data[i[k]:j[k],],2,function(x) all(!is.na(x)))
+}
+
+Y<-list()
+for (k in 1:length(j)){
+  Y[[k]] = data[,to_keep[[k]]]
+}
+
+end_year = 2015   #last year the model is fitted in
+Y_repeats = list()
+k <- seq(from=1, to=length(j), by=1)
+t <- seq(from=start_year, to=end_year, by=1)
+#create a list in which each object corresponds to a year and it is a matrix n (number of days) x p (number of stocks)
+for (k in 1:length(k)){
+  Y_repeats[[k]] = Y[[k]][Y[[k]]$Year == t[k],-(1:2)]
+}
+
+name_companies <- list()
+for (k in 1:length(j)){
+  name_companies[[k]] <- as.vector(colnames(Y_repeats[[k]])) #a list of vectors with the names of the company that are always present every 2 years
+}
+
+```
+
+#Risk data preprocessing
+
+Load packages
+
+```{R}
+
+library(readr)
+library(readxl)
+library(dplyr)
+library(devtools)
+library(polynom)
+library(ggplot2)
+library(huge)
+library("car")
+library(tidyquant)
+library(data.table)
+
+```
+
+Load risk measure data
+
+```{R laod network data}
+
+risk_index <- read.csv("10K_davisetal_dictionaries_2015-2019.txt")
+
+## scaling by the number of sentences 
+risk_index_scaled <- risk_index
+risk_index_scaled[,2:38] <- risk_index[,2:38]/risk_index[,39]
+risk_index_scaled <- risk_index_scaled[,-39]
+```
+
+Restricting to only the stock to be considered
+
+```{R manipulating network data}
+
+CIK <- read.delim2("CIK_to_names.txt", sep="")
+colnames(CIK)[1] <- "cik"
+risk_index_scaled_select_pre <- merge(CIK,risk_index_scaled,by="cik") #to have a data frame with variables cik, company name, count of words for each risk type and number of sentences 
+
+risk_index_scaled_select <- list()
+N <- length(Y_repeats)
+for (k in 1:N){
+  risk_index_scaled_select[[k]] <- risk_index_scaled_select_pre[risk_index_scaled_select_pre$NAME %in% name_companies[[k]],] #to only consider the companies for which we have the risk data and whose name is always present all over the period of time defined
+}
+
+```
+
+Network matrices
+
+```{R network matrices}
+
+## In order to be able to standardize the network matrix, we need to make sure that neither the E nor the P vectors are 0 vectors.
+nonzero_row <- list()
+zero_row <- list()
+for (k in 1:N){
+  nonzero_row[[k]] <- risk_index_scaled_select[[k]][rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_E"))) > 0 & rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_P"))) > 0, ]
+  zero_row[[k]] <- risk_index_scaled_select[[k]][rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_E"))) == 0 | rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_P"))) ==0, ]
+}
+
+#### take log(1+count) for each risk measure
+mydf <- list()
+upd <- list()
+for (k in 1:N){
+  mydf[[k]] <- nonzero_row[[k]]
+  mydf[[k]] <- arrange(mydf[[k]], cik)## sorted by cik number
+  upd[[k]] <- unique(colnames(mydf[[k]][, 3:ncol(mydf[[k]])]))
+  mydf[[k]][,names(mydf[[k]]) %in% upd[[k]]] <- log(mydf[[k]][,names(mydf[[k]]) %in%     upd[[k]]] + 1)  ##add 1 to the elements of 37 risk measures and take the logarithm
+}
+
+#### Pearson Network: row centring
+mydf_E <- list()
+mydf_centering_E <- list()
+for (k in 1:N){
+  mydf_E[[k]]  <- mydf[[k]] %>%select(ends_with("_E"))
+  mydf_centering_E[[k]] <- ( mydf_E[[k]] - matrix(rowMeans(mydf_E[[k]]), nrow = nrow( mydf_E[[k]]), ncol = ncol( mydf_E[[k]]), byrow = FALSE ))   ##row centering for E risks
+}
+#rowMeans(mydf_centering_E[[k]])
+
+mydf_P <- list()
+mydf_centering_P <- list()
+for (k in 1:N){
+  mydf_P[[k]]  <- mydf[[k]] %>%select(ends_with("_P"))
+  mydf_centering_P[[k]] <- ( mydf_P[[k]] - matrix(rowMeans( mydf_P[[k]]), nrow = nrow( mydf_P[[k]]), ncol = ncol( mydf_P[[k]]), byrow = FALSE ))   ##row centering for P risks
+}
+#rowMeans(mydf_centering_P[[k]])
+
+E_pears <- list()
+P_pears <- list()
+for (k in 1:N){
+  E_pears[[k]] <- lsa::cosine(t(as.matrix(mydf_centering_E[[k]])))    ## pearson network for Economy measure
+  P_pears[[k]] <- lsa::cosine(t(as.matrix(mydf_centering_P[[k]])))    ## pearson network for Policy measure
+}
+
+```
+
+Standardizing network matrices 
+
+```{r standardizing networks matrices, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+for (k in 1:N){
+  P_pears[[k]] <- standardise_network_matrix_tri(P_pears[[k]])
+  diag(P_pears[[k]]) <- 0
+  
+  E_pears[[k]] <- standardise_network_matrix_tri(E_pears[[k]])
+  diag(E_pears[[k]]) <- 0
+}
+
+```
+
+#GOLAZO 
+
+Network matrices: P_pears and E_Pears
+
+```{r GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+N <- length(Y_repeats) #number of years
+
+p <- vector()
+for (k in 1:N){
+  p[k] <- ncol(Y_repeats[[k]])   #every year we have a different number of stocks (portfolio changes)
+}
+
+L<-list()
+U<-list()
+for (k in 1:N){
+  L[[k]] <- matrix(-1,p[k],p[k])      #N matrices with different dimensions
+  U[[k]] <- matrix (1,p[k],p[k])
+  diag(U[[k]]) <- diag(L[[k]]) <- 0
+}
+
+beta_GOLAZO_full <- matrix(NA, nrow = N, ncol = 3)
+beta0_grid_max <- 3
+beta0_grid_min <- -3
+beta1_grid_max <- 4
+beta1_grid_min <- -5
+beta2_grid_max <- 4
+beta2_grid_min <- -5
+
+EBIC_grid_length <- 20
+ebic_eval_optim_GOLAZO_full_unstandarised <- rep(NA, N)
+
+R<-list()
+res<-list()
+Rho_hat_GOLAZO_full<-list()
+
+time_GOLAZO_freq.start <- Sys.time()
+for(k in 1:N){
+  
+  n = nrow(Y_repeats[[k]])
+  #### Estimating lambda ####
+  R[[k]] <- stats::cov2cor(cov(Y_repeats[[k]])) 
+  
+  #### Bayesian Optimisation ####
+  beta_optimise <- list()
+  beta_optimise[[k]] <- BayesianOptimization(
+    FUN = function(beta0, beta1, beta2){ebic_eval_two_networks_BayesOpt(n, R[[k]], P_pears[[k]], E_pears[[k]], beta0, beta1, beta2, ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)},
+    bounds = list(beta0 = c(beta0_grid_min, beta0_grid_max),
+                  beta1 = c(beta1_grid_min, beta1_grid_max), beta2 = c(beta2_grid_min, beta2_grid_max)),
+    init_points = 5,
+    n_iter = EBIC_grid_length - 5,
+    acq = "ucb", 
+    kernel = list(type = "exponential", power = 2),
+  )
+  
+  beta_GOLAZO_full[k,] <- beta_optimise[[k]]$Best_Par
+  
+  U <- exp(beta_GOLAZO_full[k,1] + beta_GOLAZO_full[k,2]*P_pears[[k]] + beta_GOLAZO_full[k,3]*E_pears[[k]]) 
+  
+  ###################################
+  # we are now ready to run GOLAZO and output the optimal K
+  diag(U) <- 0
+  
+  res[[k]] <- golazo(R[[k]], -U, U, tol = 1e-7, verbose=FALSE)
+  
+  ebic_eval_optim_GOLAZO_full_unstandarised[k] <- ebic_eval_GLASSO_unstandarised(Y = as.matrix(Y_repeats[[k]]), res = res[[k]], n, beta_GOLAZO_full[k,], ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)
+  
+  Rho_hat_GOLAZO_full[[k]] <- threshold(cov2cor(res[[k]]$K), edge.tol)
+}
+time_GOLAZO_freq.end <- Sys.time()
+
+```
+
+Analysis
+
+```{r Analysis, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+beta_GOLAZO_full
+
+ebic_eval_optim_GOLAZO_full_unstandarised
+
+n_edges<-rep(NA,N)
+for (k in 1:N){
+  n_edges[k]<-sum(Rho_hat_GOLAZO_full[[k]][lower.tri((Rho_hat_GOLAZO_full[[k]]))] != 0) # number of edges
+}
+
+time_GOLAZO_freq1 <- time_GOLAZO_freq.end - time_GOLAZO_freq.start
+time_GOLAZO_freq <- round(time_GOLAZO_freq1/N, 3)
+time_GOLAZO_freq
+
+```
+
+Minimum Variance function
+
+```{r Minimum-Variance functions, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+minimum_variance_portfolio <- function (cov.Rt){
+  one.vec <- rep(1,nrow(cov.Rt))
+  num <- solve(cov.Rt) %*% one.vec
+  den <- as.numeric(t(one.vec) %*% num)
+  return(num/den)
+}
+
+```
+
+Expected return function
+
+```{r Expected Return function, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+expected_return_portfolio_minimum_variance <- function (cov.Rt, mean){
+  one.vec <- rep(1,nrow(cov.Rt))
+  num <- as.numeric(t(one.vec) %*% solve(cov.Rt) %*% mean)
+  den <- as.numeric(t(one.vec) %*% solve(cov.Rt) %*% one.vec)
+  return(num/den)
+}
+
+```
+
+Defining baseline (equally weighted stocks)
+
+```{r Defining baseline, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+mean <- list()
+for (k in 1:N){
+  mean[[k]] <- colMeans(Y_repeats[[k]])
+}
+
+weights_b <- list()
+for (k in 1:N){
+  weights_b[[k]] <- rep(1/p[k],p[k])
+}
+
+#the baseline is the target return rate for the mean variance portfolio  
+baseline_portfolio <- rep(NA,N)   
+for (k in 1:N){
+  baseline_portfolio[k] <- sum(mean[[k]] %*% weights_b[[k]])
+}
+
+```
+
+Estimating Sigma 
+
+```{r estimating Sigma with GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+Sigma_hat_GOLAZO <- list()   #N pxp matrices where p changes according to the year
+for (k in 1:N){
+  Sigma_hat_GOLAZO[[k]] <- cor2cov(Rho_hat_GOLAZO_full[[k]], sigma2_vect = diag(cov(Y_repeats[[k]])))
+}
+
+```
+
+Estimating weights
+
+```{r Weights, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+weights_minimum_variance_GOLAZO <- list()
+for (k in 1:N){
+  weights_minimum_variance_GOLAZO[[k]] <- minimum_variance_portfolio(Sigma_hat_GOLAZO[[k]]) 
+}
+
+for (k in 1:N){
+  weights_minimum_variance_GOLAZO[[k]] <- weights_minimum_variance_GOLAZO[[k]]/sum(weights_minimum_variance_GOLAZO[[k]])
+}
+
+#mean variance
+weights_mean_variance_GOLAZO <- list()
+for (k in 1:N){
+  weights_mean_variance_GOLAZO[[k]] <- mvPortfolio(mean[[k]], Sigma_hat_GOLAZO[[k]], min.return=baseline_portfolio[k])
+}
+
+```
+
+Estimating expected return portfolio
+
+```{r Expected return portfolio, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+expected_return_portfolio_minimum_variance_GOLAZO <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_minimum_variance_GOLAZO[k] <- expected_return_portfolio_minimum_variance(Sigma_hat_GOLAZO[[k]], mean[[k]])
+}
+
+#mean variance
+expected_return_portfolio_mean_variance_GOLAZO <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_mean_variance_GOLAZO[k] <- sum(weights_mean_variance_GOLAZO[[k]]*mean[[k]])
+}
+
+```
+
+Two portfolio solution
+
+```{r Two portfolio solution, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#it makes the expected return portfolio equal to the baseline we defined before 
+W_mk <- list()
+for (k in 1:N){
+  one.vec <- rep(1,nrow(Sigma_hat_GOLAZO[[k]]))
+  W_mk[[k]] <- (mean[[k]]%*%solve(Sigma_hat_GOLAZO[[k]]))/(as.numeric(t(one.vec[k]) %*% mean[[k]] %*% solve(Sigma_hat_GOLAZO[[k]])))
+}
+
+v_2PS_GOLAZO <- list()
+for (k in 1:N){
+  v_2PS_GOLAZO[[k]] <- weights_mean_variance_GOLAZO[[k]]-weights_minimum_variance_GOLAZO[[k]]
+}
+
+alpha_2PS_GOLAZO <- rep(NA,N)
+for (k in 1:N){
+  alpha_2PS_GOLAZO[k] <- ((sum(mean[[k]])/p[k])-(t(mean[[k]]) %*% weights_minimum_variance_GOLAZO[[k]]))/(t(mean[[k]]) %*% v_2PS_GOLAZO[[k]])
+}
+
+w_2PS_GOLAZO <- list()
+for (k in 1:N){
+  w_2PS_GOLAZO[[k]] <- weights_minimum_variance_GOLAZO[[k]]+(v_2PS_GOLAZO[[k]]*alpha_2PS_GOLAZO[k])
+}
+
+expected_return_portfolio_2PS_GOLAZO <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_2PS_GOLAZO[k] <- t(mean[[k]])%*%w_2PS_GOLAZO[[k]]
+}
+
+```
+
+Plot Sigma and Rho matrices
+
+```{r Plot Sigma matrix, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#funztion
+matrixplot = function(m) {
+  require(ggplot2)
+  require(reshape2)
+  
+  p = nrow(m)
+  
+  m.mat = data.frame(Var1=rep(1:p,p),
+                     Var2=rep(1:p,each=p),
+                     Theta=as.vector(t(m)[,p:1]))
+  
+  pl = ggplot() + 
+    geom_tile(data = m.mat, aes(x=Var1, y=as.numeric(Var2), fill=Theta)) + ylab('') + xlab('') +
+    scale_fill_gradient2(low="red",high="blue",mid="white",midpoint=0) +
+    geom_rect(aes(ymin=0.5,ymax=p+0.5,xmin=0.5,xmax=p+0.5),col="black",fill=NA,linetype='dashed') +
+    theme(panel.grid = element_blank(), 
+          panel.background = element_rect(fill='white'),
+          plot.background = element_rect(color=NA), 
+          axis.title.x=element_blank(), 
+          axis.title.y=element_blank(),
+          axis.ticks=element_blank(),
+          axis.text=element_blank(),
+          text = element_text(size=20), 
+          legend.position = "right") 
+  
+  plot(pl)
+}
+
+#plots
+for (k in 1:N){
+  matrixplot(Sigma_hat_GOLAZO[[k]]-diag(NA,p[k]))
+  matrixplot(Rho_hat_GOLAZO_full[[k]]-diag(NA,p[k]))
+}
+
+```
+
+Loading Fama and French data 
+
+```{r loading Fama and French data}
+
+FF <- read.delim2('F-F_Research_Data_Factors_daily.txt',dec='.')
+
+data_FF <- FF[FF$Year %in% (start_year:end_year),]
+
+FF_repeats = list()
+it = 0
+for (t in start_year:end_year) {
+  it = it+1
+  FF_year = data_FF[data_FF$Year == t,-(1:2)]
+  FF_repeats[[it]] = FF_year
+}
+
+```
+
+Fitting Fama and French regression model and getting fitted values
+
+```{r Fitting Fama and French model}
+
+FF_regression <- list()
+fitted_FF <- list()
+
+for (k in 1:N){
+  Y_year = Y_repeats[[k]]
+  n<-nrow(Y_year)
+  fitted_FF[[k]] = matrix(NA,n,p[k])
+  for (i in 1:p[k])  {
+    fitted_FF[[k]][,i] <- lm((Y_year[,i]-FF_repeats[[k]][[4]])~FF_repeats[[k]][[2]]+FF_repeats[[k]][[3]]+FF_repeats[[k]][[1]])$fitted
+  }
+  FF_regression[[k]] = fitted_FF[[k]]
+}
+
+```
+
+Daily excess returns (residuals of the regression)
+
+```{r Daily excess returns }
+
+Y_repeats_FF <- list()
+for (k in 1:N){
+  for (i in 1:p[k]) {
+    Y_repeats_FF[[k]] <- Y_repeats[[k]]-FF_regression[[k]][,i]
+  }}
+
+```
+
+#GOLAZO FF
+
+Network matrices: P_pears and E_pears
+
+```{r GOLAZO_run, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+N <- length(Y_repeats_FF) #number of years
+
+p <- vector()
+for (k in 1:N){
+  p[k] <- ncol(Y_repeats_FF[[k]])
+}
+
+L<-list()
+U<-list()
+for (k in 1:N){
+  L[[k]] <- matrix(-1,p[k],p[k])    
+  U[[k]] <- matrix (1,p[k],p[k])
+  diag(U[[k]]) <- diag(L[[k]]) <- 0
+}
+
+beta_GOLAZO_full_FF <- matrix(NA, nrow = N, ncol = 3)
+beta0_grid_max <- 3
+beta0_grid_min <- -3
+beta1_grid_max <- 4
+beta1_grid_min <- -5
+beta2_grid_max <- 4
+beta2_grid_min <- -5
+
+EBIC_grid_length <- 20
+ebic_eval_optim_GOLAZO_full_unstandarised_FF <- rep(NA, N)
+
+R<-list()
+res<-list()
+Rho_hat_GOLAZO_full_FF<-list()
+
+time_GOLAZO_freq.start <- Sys.time()
+for(k in 1:N){
+  
+  n = nrow(Y_repeats_FF[[k]])
+  #### Estimating lambda ####
+  R[[k]] <- stats::cov2cor(cov(Y_repeats_FF[[k]])) 
+  
+  #### Bayesian Optimisation ####
+  beta_optimise <- list()
+  beta_optimise[[k]] <- BayesianOptimization(
+    FUN = function(beta0, beta1, beta2){ebic_eval_two_networks_BayesOpt(n, R[[k]], P_pears[[k]], E_pears[[k]], beta0, beta1, beta2, ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)},
+    bounds = list(beta0 = c(beta0_grid_min, beta0_grid_max),
+                  beta1 = c(beta1_grid_min, beta1_grid_max), beta2 = c(beta2_grid_min, beta2_grid_max)),
+    init_points = 5,
+    n_iter = EBIC_grid_length - 5,
+    acq = "ucb", 
+    kernel = list(type = "exponential", power = 2),
+  )
+  
+  beta_GOLAZO_full_FF[k,] <- beta_optimise[[k]]$Best_Par
+  # JACK: Saving the EBIC 
+  ebic_eval_optim_GOLAZO_full_FF[k] <- - beta_optimise[[k]]$Best_Value
+  
+  U <- exp(beta_GOLAZO_full_FF[k,1] + beta_GOLAZO_full_FF[k,2]*P_pears[[k]] + beta_GOLAZO_full_FF[k,3]*E_pears[[k]]) 
+  
+  ###################################
+  # we are now ready to run GOLAZO and output the optimal K
+  diag(U) <- 0
+  
+  res[[k]] <- golazo(R[[k]], -U, U, tol = 1e-7, verbose=FALSE)
+  
+  ebic_eval_optim_GOLAZO_full_unstandarised_FF[k] <- ebic_eval_GLASSO_unstandarised(Y = as.matrix(Y_repeats_FF[[k]]), res = res[[k]], n, beta_GOLAZO_full_FF[k,], ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)
+  
+  Rho_hat_GOLAZO_full_FF[[k]] <- threshold(cov2cor(res[[k]]$K), edge.tol)
+}
+time_GOLAZO_freq.end <- Sys.time()
+
+```
+
+Analysis
+
+```{r Analysis, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+beta_GOLAZO_full_FF
+
+ebic_eval_optim_GOLAZO_full_unstandarised_FF
+
+n_edges<-rep(NA,N)
+for (k in 1:N){
+  n_edges[k]<-sum(Rho_hat_GOLAZO_full_FF[[k]][lower.tri((Rho_hat_GOLAZO_full_FF[[k]]))] != 0) # number of edges
+}
+
+time_GOLAZO_freq1 <- time_GOLAZO_freq.end - time_GOLAZO_freq.start
+time_GOLAZO_freq <- round(time_GOLAZO_freq1/N, 3)
+time_GOLAZO_freq
+
+```
+
+Defining baseline (equally weighted stocks)
+
+```{r Defining baseline, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+mean <- list()
+for (k in 1:N){
+  mean[[k]] <- colMeans(Y_repeats_FF[[k]])
+}
+
+weights_b <- list()
+for (k in 1:N){
+  weights_b[[k]] <- rep(1/p[k],p[k])
+}
+
+#the baseline is the target return rate for the mean variance portfolio  
+baseline_portfolio <- rep(NA,N)   
+for (k in 1:N){
+  baseline_portfolio[k] <- sum(mean[[k]] %*% weights_b[[k]])
+}
+
+```
+
+Estimating Sigma
+
+```{r estimating Sigma with GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+Sigma_hat_GOLAZO_FF <- list()
+for (k in 1:N){
+  Sigma_hat_GOLAZO_FF[[k]] <- cor2cov(Rho_hat_GOLAZO_full_FF[[k]], sigma2_vect = diag(cov(Y_repeats_FF[[k]])))
+}
+
+```
+
+Estimating weights
+
+```{r Weights, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+weights_minimum_variance_GOLAZO_FF <- list()
+for (k in 1:N){
+  weights_minimum_variance_GOLAZO_FF[[k]] <- minimum_variance_portfolio(Sigma_hat_GOLAZO_FF[[k]]) 
+}
+
+for (k in 1:N){
+  weights_minimum_variance_GOLAZO_FF[[k]] <- weights_minimum_variance_GOLAZO_FF[[k]]/sum(weights_minimum_variance_GOLAZO_FF[[k]])
+}
+
+#mean variance
+weights_mean_variance_GOLAZO_FF <- list()
+for (k in 1:N){
+  weights_mean_variance_GOLAZO_FF[[k]] <- mvPortfolio(mean[[k]], Sigma_hat_GOLAZO_FF[[k]], min.return=baseline_portfolio[k])
+}
+
+```
+
+Estimating expected return portfolio
+
+```{r Expected return portfolio, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+expected_return_portfolio_minimum_variance_GOLAZO_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_minimum_variance_GOLAZO_FF[k] <- expected_return_portfolio_minimum_variance(Sigma_hat_GOLAZO_FF[[k]], mean[[k]])
+}
+
+#mean variance
+expected_return_portfolio_mean_variance_GOLAZO_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_mean_variance_GOLAZO_FF[k] <- sum(weights_mean_variance_GOLAZO_FF[[k]]*mean[[k]])
+}
+
+```
+
+Two portfolio solution
+
+```{r Two portfolio solution, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#it makes the expected return portfolio equal to the baseline we defined before 
+W_mk <- list()
+for (k in 1:N){
+  one.vec <- rep(1,nrow(Sigma_hat_GOLAZO_FF[[k]]))
+  W_mk[[k]] <- (mean[[k]]%*%solve(Sigma_hat_GOLAZO_FF[[k]]))/(as.numeric(t(one.vec[k]) %*% mean[[k]] %*% solve(Sigma_hat_GOLAZO_FF[[k]])))
+}
+
+v_2PS_GOLAZO_FF <- list()
+for (k in 1:N){
+  v_2PS_GOLAZO_FF[[k]] <- weights_mean_variance_GOLAZO_FF[[k]]-weights_minimum_variance_GOLAZO_FF[[k]]
+}
+
+alpha_2PS_GOLAZO_FF <- rep(NA,N)
+for (k in 1:N){
+  alpha_2PS_GOLAZO_FF[k] <- ((sum(mean[[k]])/p[k])-(t(mean[[k]]) %*% weights_minimum_variance_GOLAZO_FF[[k]]))/(t(mean[[k]]) %*% v_2PS_GOLAZO_FF[[k]])
+}
+
+w_2PS_GOLAZO_FF <-list()
+for (k in 1:N){
+  w_2PS_GOLAZO_FF[[k]] <- weights_minimum_variance_GOLAZO_FF[[k]]+(v_2PS_GOLAZO_FF[[k]]*alpha_2PS_GOLAZO_FF[k])
+}
+
+expected_return_portfolio_2PS_GOLAZO_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_2PS_GOLAZO_FF[k] <- t(mean[[k]])%*%w_2PS_GOLAZO_FF[[k]]
+}
+
+```
+
+Plot Sigma and Rho matrices
+
+```{r Plot Sigma and Rho matrices, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+for (k in 1:N){
+  matrixplot(Sigma_hat_GOLAZO_FF[[k]]-diag(NA,p[k]))
+  matrixplot(Rho_hat_GOLAZO_full_FF[[k]]-diag(NA,p[k]))
+}
+
+```
+
+#Actual portfolio return rate
+
+Loading data years after
+
+```{r Loading data years after}
+
+start_year = 1986  #start_year we had before + 1
+end_year = 2016    #end_year we had before + 1
+
+Y_repeats_actual = list()
+Y_prova = list()
+k <- seq(from=1, to=N, by=1)
+t <- seq(from=start_year, to=end_year, by=1)
+for (k in 1:N){
+  Y_prova[[k]]<-Y[[k]][Y[[k]]$Year == t[k],-2]  #time series with the column 'dates'
+  Y_repeats_actual[[k]] = Y[[k]][Y[[k]]$Year == t[k],-(1:2)]
+} 
+
+```
+
+#GOLAZO 
+
+Network matrices: P_pears and E_pears
+
+```{r Actual portfolio return rate GLASSO}
+
+r <- list()   #actual return rates of stocks per year
+for (k in 1:N){
+  r[[k]] <- colSums(Y_repeats_actual[[k]])
+}
+
+#minimum variance
+portfolio_actual_return_rate_minimum_variance_GOLAZO <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_minimum_variance_GOLAZO[k] <- sum(weights_minimum_variance_GOLAZO[[k]] * r[[k]])
+}
+
+#mean variance
+portfolio_actual_return_rate_mean_variance_GOLAZO <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_mean_variance_GOLAZO[k] <- sum(weights_mean_variance_GOLAZO[[k]] * r[[k]])
+}
+
+#cumulative actual portfolio return rate with minimum and mean variance 
+sum(portfolio_actual_return_rate_minimum_variance_GOLAZO)
+sum(portfolio_actual_return_rate_mean_variance_GOLAZO)
+
+```
+
+#GOLAZO FF 
+
+Network matrices: P_pears and E_pears
+
+```{r Actual portfolio return rate GLASSO FF}
+
+#minimum variance
+portfolio_actual_return_rate_minimum_variance_GOLAZO_FF <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_minimum_variance_GOLAZO_FF[k] <- sum(weights_minimum_variance_GOLAZO_FF[[k]] * r[[k]])
+}
+
+#mean variance
+portfolio_actual_return_rate_mean_variance_GOLAZO_FF <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_mean_variance_GOLAZO_FF[k] <- sum(weights_mean_variance_GOLAZO_FF[[k]] * r[[k]])
+}
+
+#cumulative actual portfolio return rate with minimum and mean variance 
+sum(portfolio_actual_return_rate_minimum_variance_GOLAZO_FF)
+sum(portfolio_actual_return_rate_mean_variance_GOLAZO_FF)
+
+```
+
+#Performance
+
+Volatily
+
+```{r Performance Volatily}
+
+for (k in 1:N){
+  row.names(Y_prova[[k]]) <- Y_prova[[k]][,1]
+}
+
+#minimum variance
+daily_portfolio_return_minimum_variance_GOLAZO <- list()
+daily_portfolio_return_minimum_variance_GOLAZO_FF <- list()
+
+for (k in 1:31){
+  daily_portfolio_return_minimum_variance_GOLAZO[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_minimum_variance_GOLAZO[k]), verbose=TRUE)
+  
+  daily_portfolio_return_minimum_variance_GOLAZO_FF[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_minimum_variance_GOLAZO_FF[k]), verbose=TRUE)
+}
+
+StdDev_minimum_variance_GOLAZO <- vector()
+StdDev_minimum_variance_GOLAZO_FF <- vector()
+
+for (k in 1:31){
+  StdDev_minimum_variance_GOLAZO[k] <- StdDev(daily_portfolio_return_minimum_variance_GOLAZO[[k]]$returns)
+  
+  StdDev_minimum_variance_GOLAZO_FF[k] <- StdDev(daily_portfolio_return_minimum_variance_GOLAZO_FF[[k]]$returns)
+}
+
+mean(StdDev_minimum_variance_GOLAZO)
+mean(StdDev_minimum_variance_GOLAZO_FF)
+
+#mean variance
+daily_portfolio_return_mean_variance_GOLAZO <- list()
+daily_portfolio_return_mean_variance_GOLAZO_FF <- list()
+
+for (k in 1:31){
+  daily_portfolio_return_mean_variance_GOLAZO[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_mean_variance_GOLAZO[k]), verbose=TRUE)
+  
+  daily_portfolio_return_mean_variance_GOLAZO_FF[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_mean_variance_GOLAZO_FF[k]), verbose=TRUE)
+}
+
+StdDev_mean_variance_GOLAZO <- vector()
+StdDev_mean_variance_GOLAZO_FF <- vector()
+
+for (k in 1:31){
+  StdDev_mean_variance_GOLAZO[k] <- StdDev(daily_portfolio_return_mean_variance_GOLAZO[[k]]$returns)
+  
+  StdDev_mean_variance_GOLAZO_FF[k] <- StdDev(daily_portfolio_return_mean_variance_GOLAZO_FF[[k]]$returns)
+}
+
+mean(StdDev_mean_variance_GOLAZO)
+mean(StdDev_mean_variance_GOLAZO_FF)
+
+```
+
+Sharpe Ratio
+
+```{r Performance Sharpe Ratio}
+
+#minimum variance
+Sharpe_ratio_minimum_variance_GOLAZO <- vector()
+Sharpe_ratio_minimum_variance_GOLAZO_FF <- vector()
+
+for (k in 1:N){
+  row.names(Y_prova[[k]]) <- Y_prova[[k]][,1]
+}
+
+for (k in 1:N){
+  Sharpe_ratio_minimum_variance_GOLAZO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_minimum_variance_GOLAZO[k]))
+  
+  Sharpe_ratio_minimum_variance_GOLAZO_FF[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_minimum_variance_GOLAZO_FF[k]))
+}
+
+mean(Sharpe_ratio_minimum_variance_GOLAZO)
+mean(Sharpe_ratio_minimum_variance_GOLAZO_FF)
+
+#mean variance
+Sharpe_ratio_mean_variance_GOLAZO <- vector()
+Sharpe_ratio_mean_variance_GOLAZO_FF <- vector()
+
+for (k in 1:N){
+  Sharpe_ratio_mean_variance_GOLAZO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_mean_variance_GOLAZO[k]))
+  
+  Sharpe_ratio_mean_variance_GOLAZO_FF[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_mean_variance_GOLAZO_FF[k]))
+}
+
+mean(Sharpe_ratio_mean_variance_GOLAZO)
+mean(Sharpe_ratio_mean_variance_GOLAZO_FF)
+
+```
+
+Herfindal Index
+
+```{r Herfindal Index}
+
+#minimum variance
+HHI_minimum_variance_GOLAZO <- vector()
+HHI_minimum_variance_GOLAZO_FF <- vector()
+
+for (k in 1:N){
+  HHI_minimum_variance_GOLAZO[k] <- HHI(unlist(weights_minimum_variance_GOLAZO[[k]]))
+  
+  HHI_minimum_variance_GOLAZO_FF[k] <- HHI(unlist(weights_minimum_variance_GOLAZO_FF[[k]]))
+}
+
+mean(HHI_minimum_variance_GOLAZO)
+mean(HHI_minimum_variance_GOLAZO_FF)
+
+#mean variance
+HHI_mean_variance_GOLAZO <- vector()
+HHI_mean_variance_GOLAZO_FF <- vector()
+
+for (k in 1:N){
+  HHI_mean_variance_GOLAZO[k] <- HHI(unlist(weights_mean_variance_GOLAZO[[k]]))
+  
+  HHI_mean_variance_GOLAZO_FF[k] <- HHI(unlist(weights_mean_variance_GOLAZO_FF[[k]]))
+}
+
+mean(HHI_mean_variance_GOLAZO)
+mean(HHI_mean_variance_GOLAZO_FF)
+
+```
+
