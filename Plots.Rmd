@@ -1130,3 +1130,34 @@ for (k in 1:31){
 }
 
 ```
+EBIC  
+
+```{r EBIC}
+
+year <- rep(seq(from=1986, to=2016),6)
+
+ebic <- c(ebic_eval_optim_GOLAZO_E_pears_full_FF_unstandarised, ebic_eval_optim_GOLAZO_E_pears_full_unstandarised, ebic_eval_optim_GOLAZO_full_unstandarised, ebic_eval_optim_GOLAZO_full_unstandarised_FF, ebic_eval_optim_GOLAZO_P_pears_full_FF_unstandarised, ebic_eval_optim_GOLAZO_P_pears_full_unstandarised)
+
+models <- c(rep('Economic GLASSO Fama-French', 31),rep('Economic GLASSO', 31),  rep('Policy and Economic GLASSO', 31),rep('Policy and Economic GLASSO Fama-French', 31),rep('Policy GLASSO Fama-French', 31),rep('Policy GLASSO', 31) )
+
+df <- data.frame(year, ebic, models )
+
+ebic_plot <- ggplot(data = df, aes(x = year, y = ebic, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(
+       x = "Year",
+       y = "BIC") +
+  scale_linetype_manual(values = rep(c( "dashed", "solid", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Bayesian Information Criterium over time")
+
+```
