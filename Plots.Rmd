@@ -1130,7 +1130,9 @@ for (k in 1:31){
 }
 
 ```
-EBIC  
+#Plot EBIC  
+
+GLASSO
 
 ```{r EBIC}
 
@@ -1145,8 +1147,8 @@ df <- data.frame(year, ebic, models )
 ebic_plot <- ggplot(data = df, aes(x = year, y = ebic, color = models, linetype = models)) +
   geom_line(size = 1) +
   labs(
-       x = "Year",
-       y = "BIC") +
+    x = "Year",
+    y = "BIC") +
   scale_linetype_manual(values = rep(c( "dashed", "solid", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
   scale_color_lancet()   +
   theme_bw() +
@@ -1158,6 +1160,814 @@ ebic_plot <- ggplot(data = df, aes(x = year, y = ebic, color = models, linetype 
     plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
     plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
   ) +
-  ggtitle("Bayesian Information Criterium over time")
+  ggtitle("Bayesian Information Criterion over time")
+
+```
+
+# Plot the number of edges
+
+TLASSO vs GLASSO
+
+```{r Plot edges}
+
+year <- rep(seq(from=1986, to=2016),2)
+
+edges <- c((n_edges_TLASSO), (n_edges_GLASSO))
+
+models <- c(rep('TLASSO', 31),rep('GLASSO', 31))
+
+df <- data.frame(year, edges, models )
+
+n_edges_1 <- ggplot(data = df, aes(x = year, y = edges, fill = models)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Number of edges over time",
+       x = "Year",
+       y = "N edges", fill = "") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top",
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_fill_lancet() +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))
+
+year <- rep(seq(from=1986, to=2016),3)
+
+edges <- c((n_edges_TLASSO_E_pears), (n_edges_TLASSO_P_pears),(n_edges_TLASSO_2networks))
+
+models <- c(rep('Economic TLASSO', 31),rep('Policy TLASSO', 31),rep('Policy and Economic TLASSO', 31))
+
+df <- data.frame(year, edges, models )
+
+n_edges_2 <- ggplot(data = df, aes(x = year, y = edges, fill = models)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Number of edges over time",
+       x = "Year",
+       y = "N edges", fill = "") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top",
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_fill_lancet() +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))
+
+```
+
+Increasing number of iterations
+
+```{r 50 vs 10 iterations}
+
+year <- rep(seq(from=1986, to=2016),2)
+
+edges <- c(n_edges_TLASSO_50, n_edges_TLASSO_10)
+
+iterations <- c(rep('50 iterations', 31),rep('10 iterations', 31))
+
+df <- data.frame(year, edges, iterations )
+
+n_edges_iter <- ggplot(data = df, aes(x = year, y = edges, color = iterations, linetype = iterations)) +
+  geom_line(size = 1) +
+  labs(
+    x = "Year",
+    y = "N edges") +
+  scale_linetype_manual(values = rep(c( "dashed", "dotdash", "longdash", "twodash"), length.out = length(unique(df$iterations)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Number of edges over time TLASSO") 
+
+```
+
+#Plot portfolio standard deviation per year according to different models  
+
+GLASSO vs TLASSO
+
+```{r Plot StDev}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),4)
+
+StdDev_mean_variance <- c((StdDev_mean_variance_GLASSO),( StdDev_mean_variance_GLASSO_FF),  (StdDev_mean_variance_TLASSO), (StdDev_mean_variance_TLASSO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31),rep('TLASSO', 31), rep('TLASSO Fama-French', 31))
+
+df <- data.frame(year, StdDev_mean_variance, models )
+
+df$dummy <- 1
+
+StdDev_mean_variance_boxplot_TLASSO <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_mean_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  stat_summary(
+    fun = mean, 
+    geom = "point", 
+    shape = 18, 
+    position = position_dodge(width = 0.8), 
+    size = 3, 
+    color = "black"
+  ) +
+  labs(
+    title = "Distribution of Volatility by Model", 
+    subtitle = "Mean variance method", 
+    x = "", 
+    y = "Log Standard Deviation", 
+    fill = ""
+  ) + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()
+  )
+
+df$dummy <- NULL
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),4)
+
+StdDev_minimum_variance <- c((StdDev_minimum_variance_GLASSO),( StdDev_minimum_variance_GLASSO_FF),  (StdDev_minimum_variance_TLASSO), (StdDev_minimum_variance_TLASSO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31),rep('TLASSO', 31), rep('TLASSO Fama-French', 31))
+
+df <- data.frame(year, StdDev_minimum_variance, models )
+
+df$dummy <- 1
+
+StdDev_minimum_variance_boxplot_TLASSO <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_minimum_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  stat_summary(
+    fun = mean, 
+    geom = "point", 
+    shape = 18, 
+    position = position_dodge(width = 0.8), 
+    size = 3, 
+    color = "black"
+  ) +
+  labs(
+    title = "Distribution of Volatility by Model", 
+    subtitle = "Minimum variance method", 
+    x = "", 
+    y = "Log Standard Deviation", 
+    fill = ""
+  ) + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()
+  )
+
+df$dummy <- NULL
+
+```
+
+```{r Plot StDev}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),8)
+
+StdDev_mean_variance <- c((StdDev_mean_variance_E_pears_TLASSO),( StdDev_mean_variance_P_pears_TLASSO), (StdDev_mean_variance_E_pears_FF_TLASSO), (StdDev_mean_variance_P_pears_FF_TLASSO),(StdDev_mean_variance_E_pears), (StdDev_mean_variance_P_pears),(StdDev_mean_variance_E_pears_FF), (StdDev_mean_variance_P_pears_FF))
+
+models <- c(rep('Economic TLASSO', 31), rep('Policy TLASSO', 31),rep('Economic TLASSO Fama-French', 31),rep('Policy TLASSO Fama-French', 31),rep('Economic GLASSO', 31),rep('Policy GLASSO', 31),rep('Economic GLASSO Fama-French', 31), rep('Policy GLASSO Fama-French', 31))
+
+df <- data.frame(year, StdDev_mean_variance, models )
+
+df$dummy <- 1
+
+StdDev_mean_variance_boxplot_TLASSO_networks <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_mean_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  stat_summary(
+    fun = mean, 
+    geom = "point", 
+    shape = 18, 
+    position = position_dodge(width = 0.8), 
+    size = 3, 
+    color = "black"
+  ) +
+  labs(
+    title = "Distribution of Volatility by Model", 
+    subtitle = "Mean variance method", 
+    x = "", 
+    y = "Log Standard Deviation", 
+    fill = ""
+  ) + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()
+  )
+
+df$dummy <- NULL
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),8)
+
+StdDev_minimum_variance <- c((StdDev_minimum_variance_E_pears_TLASSO),( StdDev_minimum_variance_P_pears_TLASSO), (StdDev_minimum_variance_E_pears_FF_TLASSO), (StdDev_minimum_variance_P_pears_FF_TLASSO),(StdDev_minimum_variance_E_pears), (StdDev_minimum_variance_P_pears),(StdDev_minimum_variance_E_pears_FF), (StdDev_minimum_variance_P_pears_FF))
+
+models <- c(rep('Economic TLASSO', 31), rep('Policy TLASSO', 31),rep('Economic TLASSO Fama-French', 31),rep('Policy TLASSO Fama-French', 31),rep('Economic GLASSO', 31),rep('Policy GLASSO', 31),rep('Economic GLASSO Fama-French', 31), rep('Policy GLASSO Fama-French', 31))
+df <- data.frame(year, StdDev_minimum_variance, models )
+
+df$dummy <- 1
+
+StdDev_minimum_variance_boxplot_TLASSO_networks <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_minimum_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  stat_summary(
+    fun = mean, 
+    geom = "point", 
+    shape = 18, 
+    position = position_dodge(width = 0.8), 
+    size = 3, 
+    color = "black"
+  ) +
+  labs(
+    title = "Distribution of Volatility by Model", 
+    subtitle = "Minimum variance method", 
+    x = "", 
+    y = "Log Standard Deviation", 
+    fill = ""
+  ) + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()
+  )
+
+df$dummy <- NULL
+
+```
+
+```{r Plot StDev}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),4)
+
+StdDev_mean_variance <- c((StdDev_mean_variance_TLASSO_2),( StdDev_mean_variance_TLASSO_FF_2),  (StdDev_mean_variance_GOLAZO), (StdDev_mean_variance_GOLAZO_FF))
+
+models <- c(rep('Policy and Economic TLASSO', 31), rep('Policy and Economic TLASSO Fama-French', 31),rep('Policy and Economic GLASSO', 31),rep('Policy and Economic GLASSO Fama-French', 31))
+
+df <- data.frame(year, StdDev_mean_variance, models )
+
+df$dummy <- 1
+
+StdDev_mean_variance_boxplot_TLASSO_networks_2 <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_mean_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  stat_summary(
+    fun = mean, 
+    geom = "point", 
+    shape = 18, 
+    position = position_dodge(width = 0.8), 
+    size = 3, 
+    color = "black"
+  ) +
+  labs(
+    title = "Distribution of Volatility by Model", 
+    subtitle = "Mean variance method", 
+    x = "", 
+    y = "Log Standard Deviation", 
+    fill = ""
+  ) + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()
+  )
+
+df$dummy <- NULL
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),4)
+
+StdDev_minimum_variance <- c((StdDev_minimum_variance_TLASSO_2),( StdDev_minimum_variance_TLASSO_FF_2),  (StdDev_minimum_variance_GOLAZO), (StdDev_minimum_variance_GOLAZO_FF))
+
+models <- c(rep('Policy and Economic TLASSO', 31), rep('Policy and Economic TLASSO Fama-French', 31),rep('Policy and Economic GLASSO', 31),rep('Policy and Economic GLASSO Fama-French', 31))
+
+df <- data.frame(year, StdDev_minimum_variance, models )
+
+df$dummy <- 1
+
+StdDev_minimum_variance_boxplot_TLASSO_networks_2 <- ggplot(df, aes(x = factor(dummy), y = log(StdDev_minimum_variance), fill = models)) +
+  geom_boxplot(position = position_dodge(width = 0.8), alpha = 0.7) +
+  stat_summary(
+    fun = mean, 
+    geom = "point", 
+    shape = 18, 
+    position = position_dodge(width = 0.8), 
+    size = 3, 
+    color = "black"
+  ) +
+  labs(
+    title = "Distribution of Volatility by Model", 
+    subtitle = "minimum variance method", 
+    x = "", 
+    y = "Log Standard Deviation", 
+    fill = ""
+  ) + 
+  scale_x_discrete(labels = NULL) +  
+  theme_minimal() +
+  scale_fill_lancet()   +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5),
+    legend.position = "top",  
+    axis.title.x = element_blank(),  
+    axis.text.x = element_blank(),   
+    axis.ticks.x = element_blank(),  
+    axis.title.y = element_text(size = 12),
+    legend.text = element_text(size = 10),
+    legend.title = element_blank()
+  )
+
+df$dummy <- NULL
+
+```
+#Plot portfolio return rate per year according to different models  
+
+GLASSO vs TLASSO
+
+```{r Plot return rates}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),4)
+
+portfolio_return_rate_mean_variance <- c(cumsum(portfolio_actual_return_rate_mean_variance_GLASSO), cumsum( portfolio_actual_return_rate_mean_variance_GLASSO_FF), cumsum(portfolio_actual_return_rate_mean_variance_TLASSO), cumsum(portfolio_actual_return_rate_mean_variance_TLASSO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31),rep('TLASSO', 31),rep('TLASSO Fama-French', 31))
+
+df <- data.frame(year, portfolio_return_rate_mean_variance, models )
+
+return_rate_mean_variance_plot_TLASSO <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Mean variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+
+```{r Plot return rates}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),4)
+
+portfolio_return_rate_minimum_variance <- c(cumsum(portfolio_actual_return_rate_minimum_variance_GLASSO), cumsum( portfolio_actual_return_rate_minimum_variance_GLASSO_FF), cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO), cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO_FF))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31),rep('TLASSO', 31),rep('TLASSO Fama-French', 31))
+
+df <- data.frame(year, portfolio_return_rate_minimum_variance, models )
+
+return_rate_minimum_variance_plot_TLASSO <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Minimum variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+```{r Plot return rates}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),8)
+
+portfolio_return_rate_mean_variance <- c(cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO_E_pears), cumsum( portfolio_actual_return_rate_mean_variance_GOLAZO_FF_E_pears), cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO_P_pears), cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO_FF_P_pears),  cumsum(portfolio_actual_return_rate_mean_variance_TLASSO_FF_E_pears),  cumsum(portfolio_actual_return_rate_mean_variance_TLASSO_E_pears),cumsum(portfolio_actual_return_rate_mean_variance_TLASSO_FF_P_pears),cumsum(portfolio_actual_return_rate_mean_variance_TLASSO_P_pears))
+
+models <- c(rep('Economic GLASSO', 31), rep('Economic GLASSO Fama-French', 31),rep('Policy GLASSO', 31),rep('Policy GLASSO Fama-French', 31),rep('Economic TLASSO Fama-French', 31),rep('Economic TLASSO', 31),rep('Policy TLASSO Fama-French', 31),rep('Policy TLASSO', 31))
+
+df <- data.frame(year, portfolio_return_rate_mean_variance, models )
+
+return_rate_mean_variance_plot_TLASSO_networks <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Mean variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+```{r Plot return rates}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),8)
+
+portfolio_return_rate_minimum_variance <- c(cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_E_pears), cumsum( portfolio_actual_return_rate_minimum_variance_GOLAZO_FF_E_pears), cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_P_pears), cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO_FF_P_pears),  cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO_FF_E_pears),  cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO_E_pears),cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO_FF_P_pears),cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO_P_pears))
+
+models <- c(rep('Economic GLASSO', 31), rep('Economic GLASSO Fama-French', 31),rep('Policy GLASSO', 31),rep('Policy GLASSO Fama-French', 31),rep('Economic TLASSO Fama-French', 31),rep('Economic TLASSO', 31),rep('Policy TLASSO Fama-French', 31),rep('Policy TLASSO', 31))
+
+df <- data.frame(year, portfolio_return_rate_minimum_variance, models )
+
+return_rate_minimum_variance_plot_TLASSO_networks <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Minimum variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+```{r Plot return rates}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),4)
+
+portfolio_return_rate_mean_variance <- c(cumsum(portfolio_actual_return_rate_mean_variance_GOLAZO), cumsum( portfolio_actual_return_rate_mean_variance_GOLAZO_FF), cumsum(portfolio_actual_return_rate_mean_variance_TLASSO_2), cumsum(portfolio_actual_return_rate_mean_variance_TLASSO_FF_2))
+
+models <- c(rep('Policy and Economic GLASSO', 31), rep('Policy and Economic GLASSO Fama-French', 31),rep('Policy and Economic TLASSO', 31),rep('Policy and Economic TLASSO Fama-French', 31))
+
+df <- data.frame(year, portfolio_return_rate_mean_variance, models )
+
+return_rate_mean_variance_plot_TLASSO_2 <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Mean variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+```{r Plot return rates}
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),4)
+
+portfolio_return_rate_minimum_variance <- c(cumsum(portfolio_actual_return_rate_minimum_variance_GOLAZO), cumsum( portfolio_actual_return_rate_minimum_variance_GOLAZO_FF), cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO_2), cumsum(portfolio_actual_return_rate_minimum_variance_TLASSO_FF_2))
+
+models <- c(rep('Policy and Economic GLASSO', 31), rep('Policy and Economic GLASSO Fama-French', 31),rep('Policy and Economic TLASSO', 31),rep('Policy and Economic TLASSO Fama-French', 31))
+
+df <- data.frame(year, portfolio_return_rate_minimum_variance, models )
+
+return_rate_minimum_variance_plot_TLASSO_2 <- ggplot(data = df, aes(x = year, y = portfolio_return_rate_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(subtitle = "Minimum variance method",
+       x = "Year",
+       y = "Return Rate") +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Portfolio Return Rate over time")
+
+```
+#Plot portfolio sharpe ratio per year according to different models  
+
+GLASSO vs TLASSO
+
+```{r Plot sharpe ratio}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),3)
+
+Sharpe_ratio_mean_variance <- c((Sharpe_ratio_mean_variance_GLASSO),( Sharpe_ratio_mean_variance_GLASSO_FF), (Sharpe_ratio_mean_variance_TLASSO))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31),rep('TLASSO', 31))
+
+df <- data.frame(year, Sharpe_ratio_mean_variance, models )
+
+Sharpe_ratio_mean_variance_plot_TLASSO <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Mean variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()+
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) 
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),3)
+
+Sharpe_ratio_minimum_variance <- c((Sharpe_ratio_minimum_variance_GLASSO),( Sharpe_ratio_minimum_variance_GLASSO_FF), (Sharpe_ratio_minimum_variance_TLASSO))
+
+models <- c(rep('GLASSO', 31), rep('GLASSO Fama-French', 31),rep('TLASSO', 31))
+
+df <- data.frame(year, Sharpe_ratio_minimum_variance, models )
+
+Sharpe_ratio_minimum_variance_plot_TLASSO <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Minimum variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()+
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) 
+
+```
+
+```{r Plot sharpe ratio}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),8)
+
+Sharpe_ratio_mean_variance <- c((Sharpe_ratio_mean_variance_E_pears),( Sharpe_ratio_mean_variance_E_pears_FF), (Sharpe_ratio_mean_variance_P_pears),(Sharpe_ratio_mean_variance_P_pears_FF),(Sharpe_ratio_mean_variance_E_pears_TLASSO),(Sharpe_ratio_mean_variance_E_pears_FF_TLASSO),(Sharpe_ratio_mean_variance_P_pears_TLASSO),(Sharpe_ratio_mean_variance_P_pears_FF_TLASSO))
+
+models <- c(rep('Economic GLASSO', 31), rep('Economic GLASSO Fama-French', 31),rep('Policy GLASSO', 31),rep('Policy GLASSO Fama-French', 31),rep('Economic TLASSO', 31),rep('Economic TLASSO Fama-French', 31),rep('Policy TLASSO', 31),rep('Policy TLASSO Fama-French', 31))
+
+df <- data.frame(year, Sharpe_ratio_mean_variance, models )
+
+Sharpe_ratio_mean_variance_plot_TLASSO_networks <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Mean variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()+
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) 
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),8)
+
+Sharpe_ratio_minimum_variance <- c((Sharpe_ratio_minimum_variance_E_pears),( Sharpe_ratio_minimum_variance_E_pears_FF), (Sharpe_ratio_minimum_variance_P_pears),(Sharpe_ratio_minimum_variance_P_pears_FF),(Sharpe_ratio_minimum_variance_E_pears_TLASSO),(Sharpe_ratio_minimum_variance_E_pears_FF_TLASSO),(Sharpe_ratio_minimum_variance_P_pears_TLASSO),(Sharpe_ratio_minimum_variance_P_pears_FF_TLASSO))
+
+models <- c(rep('Economic GLASSO', 31), rep('Economic GLASSO Fama-French', 31),rep('Policy GLASSO', 31),rep('Policy GLASSO Fama-French', 31),rep('Economic TLASSO', 31),rep('Economic TLASSO Fama-French', 31),rep('Policy TLASSO', 31),rep('Policy TLASSO Fama-French', 31))
+
+df <- data.frame(year, Sharpe_ratio_minimum_variance, models )
+
+Sharpe_ratio_minimum_variance_plot_TLASSO_networks <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Minimum variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()+
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) 
+
+```
+```{r Plot sharpe ratio}
+
+#mean variance
+year <- rep(seq(from=1986, to=2016),4)
+
+Sharpe_ratio_mean_variance <- c((Sharpe_ratio_mean_variance_GOLAZO),( Sharpe_ratio_mean_variance_GOLAZO_FF), (Sharpe_ratio_mean_variance_TLASSO_2),(Sharpe_ratio_mean_variance_TLASSO_FF_2))
+
+models <- c(rep('Policy and Economic GLASSO', 31), rep('Policy and Economic GLASSO Fama-French', 31),rep('Policy and Economic TLASSO', 31),rep('Policy and Economic TLASSO Fama-French', 31))
+
+df <- data.frame(year, Sharpe_ratio_mean_variance, models )
+
+Sharpe_ratio_mean_variance_plot_TLASSO_2 <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_mean_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Mean variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()+
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)) 
+
+#minimum variance
+year <- rep(seq(from=1986, to=2016),4)
+
+Sharpe_ratio_minimum_variance <- c((Sharpe_ratio_minimum_variance_GOLAZO),( Sharpe_ratio_minimum_variance_GOLAZO_FF), (Sharpe_ratio_minimum_variance_TLASSO_2),(Sharpe_ratio_minimum_variance_TLASSO_FF_2))
+
+models <- c(rep('Policy and Economic GLASSO', 31), rep('Policy and Economic GLASSO Fama-French', 31),rep('Policy and Economic TLASSO', 31),rep('Policy and Economic TLASSO Fama-French', 31))
+
+df <- data.frame(year, Sharpe_ratio_minimum_variance, models )
+
+Sharpe_ratio_minimum_variance_plot_TLASSO_2 <- ggplot(data = df, aes(x = year, y = Sharpe_ratio_minimum_variance, color = models, linetype = models)) +
+  geom_line(size = 1) +  
+  labs(subtitle="Minimum variance method",
+       x = "Year",
+       y = "Sharpe Ratio") +
+  theme_bw() +  
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),  
+        legend.position = "top", 
+        legend.key = element_rect(colour = "transparent", fill = "transparent")) +
+  scale_linetype_manual(values = rep(c("solid", "dashed", "dotted", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +  
+  scale_color_lancet()+
+  ggtitle("Sharpe Ratio over time") +  
+  theme(plot.title = element_text(face = "bold", size = 16, hjust = 0.5), 
+        plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5))
+
+```
+#Plot EBIC 
+
+GLASSO vs TLASSO
+
+```{r EBIC}
+
+year <- rep(seq(from=1986, to=2016),4)
+
+ebic <- c(ebic_eval_optim_GLASSO_unstandarised, ebic_eval_optim_GLASSO_unstandarised_FF, ebic_eval_optim_TLASSO, ebic_eval_optim_TLASSO_FF)
+
+models <- c(rep(' GLASSO', 31),rep('GLASSO Fama-French', 31),  rep('TLASSO', 31),  rep('TLASSO Fama-French', 31))
+
+df <- data.frame(year, ebic, models )
+
+ebic_plot_TLASSO <- ggplot(data = df, aes(x = year, y = ebic, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(
+    x = "Year",
+    y = "BIC") +
+  scale_linetype_manual(values = rep(c( "dashed", "solid", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Bayesian Information Criterion over time")
+
+```
+
+```{r EBIC}
+
+year <- rep(seq(from=1986, to=2016),4)
+
+ebic <- c(ebic_eval_optim_GOLAZO_E_pears_full_unstandarised, ebic_eval_optim_GOLAZO_E_pears_full_FF_unstandarised, ebic_eval_optim_GOLAZO_P_pears_full_unstandarised, ebic_eval_optim_GOLAZO_P_pears_full_FF_unstandarised,ebic_eval_optim_TLASSO_E_pears_full,ebic_eval_optim_TLASSO_E_pears_full_FF,ebic_eval_optim_TLASSO_P_pears_full,ebic_eval_optim_TLASSO_P_pears_full_FF)
+
+models <- c(rep('Economic GLASSO', 31),rep('Economic GLASSO Fama-French', 31),  rep('Policy GLASSO', 31),rep('Policy GLASSO Fama-French', 31),rep('Economic TLASSO', 31),rep('Economic TLASSO Fama-French', 31),rep('Policy TLASSO', 31),rep('Policy TLASSO Fama-French', 31))
+
+df <- data.frame(year, ebic, models )
+
+ebic_plot_TLASSO_networks <- ggplot(data = df, aes(x = year, y = ebic, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(
+    x = "Year",
+    y = "BIC") +
+  scale_linetype_manual(values = rep(c( "dashed", "solid", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Bayesian Information Criterion over time")
+
+```
+```{r EBIC}
+
+year <- rep(seq(from=1986, to=2016),3)
+
+ebic <- c(ebic_eval_optim_GOLAZO_full_unstandarised, ebic_eval_optim_GOLAZO_full_unstandarised_FF, ebic_eval_optim_TLASSO_full)
+
+models <- c(rep('Policy and Economic GLASSO', 31),rep('Policy and Economic GLASSO Fama-French', 31),rep('Policy and Economic TLASSO Fama-French', 31))
+
+df <- data.frame(year, ebic, models )
+
+ebic_plot_TLASSO_2 <- ggplot(data = df, aes(x = year, y = ebic, color = models, linetype = models)) +
+  geom_line(size = 1) +
+  labs(
+    x = "Year",
+    y = "BIC") +
+  scale_linetype_manual(values = rep(c( "dashed", "dotdash", "longdash", "twodash"), length.out = length(unique(df$models)))) +
+  scale_color_lancet()   +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.key = element_rect(colour = "transparent", fill = "transparent"),
+    plot.title = element_text(face = "bold", size = 16, hjust = 0.5),
+    plot.subtitle = element_text(face = "italic", size = 12, hjust = 0.5)
+  ) +
+  ggtitle("Bayesian Information Criterion over time")
 
 ```
