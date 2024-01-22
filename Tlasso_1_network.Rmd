@@ -1,0 +1,1598 @@
+---
+title: "Tlasso 1 Network"
+output: html_document
+date: "2023-11-26"
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "G:/Il mio Drive/Eugenia's Thesis/Data")
+```
+
+Packages
+
+```{r packages, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+library(golazo)
+#library(mvtnorm)
+library(graphics)
+#install.packages("NMOF")
+library(NMOF)
+library(rBayesianOptimization)
+#install.packages("metRology")
+library(metRology)
+library(matrixStats)
+library(mnormt)
+library(PerformanceAnalytics)
+
+```
+
+EBIC evaluation functions
+
+```{r functions, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+ebic_eval <- function(Y, n, beta0, ebic.gamma, edge.tol, tol, v, stop_crit){
+  res <- tlasso(Y, beta0, v, stop_crit)
+  S <- res$psi  ## dmvt has symmetric matrix problems
+  K <- pd.solve(S)
+  p <- ncol(Y)
+  log_likelihood_t <- sum(dmvt(Y, rep(0, p), sigma = S, v, log = TRUE))
+  KR <- stats::cov2cor((K))         #to make edge count independend of scalings
+  nedg <- length(which(abs(KR[upper.tri(abs(KR), diag = FALSE)]) > edge.tol))
+  ebic <- -(2)*log_likelihood_t  + nedg * (log(n) + 4 * ebic.gamma * log(p))
+  return(ebic)   
+}
+
+ebic_eval_BayesOpt <- function(Y, n, beta0, ebic.gamma, edge.tol, tol, v, stop_crit){
+  ebic <- ebic_eval(Y, n, beta0, ebic.gamma, edge.tol, tol, v, stop_crit)
+  return(list("Score" = -ebic, "Pred" = 0))   
+}
+
+ebic_eval_network_BayesOpt <- function(Y,n, beta0, beta1, A, v, stop_crit,ebic.gamma, edge.tol, tol){
+  ebic <- ebic_eval_1_network(Y,n, beta0, beta1, A, v, stop_crit,ebic.gamma, edge.tol, tol)
+  return(list("Score" = -ebic, "Pred" = 0))
+}
+
+ebic_eval_1_network <- function(Y,n, beta0, beta1, A, v, stop_crit,ebic.gamma, edge.tol, tol){
+  res <- tlasso_1_network(Y, beta0, beta1, A, v, stop_crit)
+  S <- res$psi  ## dmvt has symmetric matrix problems
+  K <- pd.solve(S)
+  p <- ncol(Y)
+  log_likelihood_t <- sum(dmvt(Y, rep(0, p), sigma = S, v, log = TRUE))
+  KR <- stats::cov2cor((K))         #to make edge count independend of scalings
+  nedg <- length(which(abs(KR[upper.tri(abs(KR), diag = FALSE)]) > edge.tol))
+  ebic <- -(2)*log_likelihood_t  + nedg * (log(n) + 4 * ebic.gamma * log(p))
+  return(ebic)   
+}
+
+ebic_eval_two_networks_BayesOpt <- function(n, R, A1, A2, beta0, beta1, beta2, ebic.gamma, edge.tol, tol){
+  U <- exp(beta0 + beta1*A1 + beta2*A2)           #### remember a = beta1, b= beta0
+  diag(U) <- 0
+  try(ebic <- ebic_eval(n, R, U, ebic.gamma, edge.tol, tol))
+  return(list("Score" = -ebic, "Pred" = 0))
+}
+
+standardise_network_matrix_tri <- function(A) {
+  p <- nrow(A)
+  A_tri <- A[upper.tri(A)]
+  bar_A_tri <- mean(A_tri)
+  S2_A_tri <- 1/length(A_tri)*sum((A_tri - bar_A_tri)^2)
+  
+  return((A - bar_A_tri)/sqrt(S2_A_tri))
+}
+
+## Turning the correlation matrix given by the golazo function back to a covariance matrix, useful in out-of-sample-llh
+cor2cov <- function(Theta_cor, sigma2_vect){
+  # Theta_cor is correlation matrix, sqrt(sigma2_vect) is the standard deviations of each variable
+  p <- nrow(Theta_cor)
+  Theta_cov <- matrix(NA, nrow = p, ncol = p)
+  for(i in 1:p){
+    Theta_cov[, i] <- Theta_cor[,i]*sqrt(sigma2_vect[i])*sqrt(sigma2_vect)   
+  }
+  return(Theta_cov)
+}
+
+threshold <- function(Rho_mat, threshold){
+  return(Rho_mat*(abs(Rho_mat) >= threshold))
+}
+
+# No Network matrix
+beta0_max_TLASSO <- function(R){
+  return(log(max(abs(R - diag(diag(R))))))## check we can irgnore diags
+  #return(log(max(max(diag(R)^2) - abs(R)))) ## Piotr's updated bound!
+}
+
+```
+
+Hyparameters
+
+Need to decide whether to use EBIC.gamma = 0 or 0.5! EBIC.gamma = 0 means we use the BIC
+
+```{r hyperparameters, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+ebic.gamma <- 0           # set to zero to get BIC
+edge.tol <-  1e-6         # be consistent with GLASSO+EBIC method
+
+```
+
+Loading data (log-return in %) from 1984 to 2016
+
+```{r loading data}
+
+sp500_CIK <- read.csv("SP500_new.csv")
+
+```
+
+Extracting years of interest and keeping only the stocks always present over those years
+
+```{r clearing data}
+
+start_year = 1985
+end_year = 2016
+
+data <- sp500_CIK[sp500_CIK$Year %in% (start_year:end_year),]
+
+#vector of row coordinates of the first observation per year (1985-2015)
+i <- c(1,253,506,759,1012,1264,1517,1770,2024,2278,2529,2781,3035,3288,3540,3792,4044,4292,4544,4796,5048,5300,5551,5802,6055,6307,6559,6811,7061,7313,7565)
+
+#vector of row coordinates of the last observation per year (1986-2016)
+j <- c(505,758,1011,1263,1516,1769,2023,2276,2528,2780,3034,3287,3539,3791,4043,4291,4543,4795,5047,5299,5550,5801,6054,6306,6558,6810,7060,7312,7564,7816,7895)
+
+to_keep <- list()
+for (k in 1:length(j)){
+  #we only keep companies that are present over 2 consecutive years
+  to_keep[[k]] = apply(data[i[k]:j[k],],2,function(x) all(!is.na(x)))
+}
+
+Y <- list()
+for (k in 1:length(j)){
+  Y[[k]] = data[,to_keep[[k]]]
+}
+
+end_year = 2015  #last year the model is fitted in
+
+Y_repeats = list()
+k <- seq(from = 1, to = length(j), by = 1)
+t <- seq(from = start_year, to = end_year, by = 1)
+#create a list in which each object corresponds to a year and it is a matrix n (number of days) x p (number of stocks)
+for (k in 1:length(k)){
+  Y_repeats[[k]] = Y[[k]][Y[[k]]$Year == t[k],-(1:2)]
+}
+
+name_companies <- list()
+for (k in 1:length(j)){
+  name_companies[[k]] <- as.vector(colnames(Y_repeats[[k]])) #a list of vectors with the names of the company that are always present every 2 years
+}
+
+```
+
+#Risk data preprocessing
+
+Load packages
+
+```{R packages}
+
+library(readr)
+library(readxl)
+library(dplyr)
+library(devtools)
+library(polynom)
+library(ggplot2)
+library(huge)
+library("car")
+library(tidyquant)
+library(data.table)
+
+```
+
+Load risk measure data
+
+```{R load risk data}
+
+risk_index <- read.csv("10K_davisetal_dictionaries_2015-2019.txt")
+
+## scaling by the number of sentences 
+risk_index_scaled <- risk_index
+risk_index_scaled[,2:38] <- risk_index[,2:38]/risk_index[,39]
+risk_index_scaled <- risk_index_scaled[,-39]
+```
+
+Restricting to only the stock to be considered
+
+```{R restricting data}
+
+CIK <- read.delim2("CIK_to_names.txt", sep="")
+colnames(CIK)[1] <- "cik"
+risk_index_scaled_select_pre <- merge(CIK,risk_index_scaled,by="cik") #to have a data frame with variables cik, company name, count of words for each risk type and number of sentences 
+
+risk_index_scaled_select <- list()
+N <- length(Y_repeats)
+for (k in 1:N){
+  risk_index_scaled_select[[k]] <- risk_index_scaled_select_pre[risk_index_scaled_select_pre$NAME %in% name_companies[[k]],] #to only consider the companies for which we have the risk data and whose name is always present all over the period of time defined
+}
+
+```
+
+Network matrices
+
+```{R network matrices}
+
+## In order to be able to standardize the network matrix, we need to make sure that neither the E nor the P vectors are 0 vectors.
+nonzero_row <- list()
+zero_row <- list()
+for (k in 1:N){
+  nonzero_row[[k]] <- risk_index_scaled_select[[k]][rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_E"))) > 0 & rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_P"))) > 0, ]
+  zero_row[[k]] <- risk_index_scaled_select[[k]][rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_E"))) == 0 | rowSums(risk_index_scaled_select[[k]] %>% select(ends_with("_P"))) ==0, ]
+}
+
+#### take log(1+count) for each risk measure
+mydf <- list()
+upd <- list()
+for (k in 1:N){
+  mydf[[k]] <- nonzero_row[[k]]
+  mydf[[k]] <- arrange(mydf[[k]], cik)## sorted by cik number
+  upd[[k]] <- unique(colnames(mydf[[k]][, 3:ncol(mydf[[k]])]))
+  mydf[[k]][,names(mydf[[k]]) %in% upd[[k]]] <- log(mydf[[k]][,names(mydf[[k]]) %in%     upd[[k]]] + 1)  ##add 1 to the elements of 37 risk measures and take the logarithm
+}
+
+#### Pearson Network: row centring
+mydf_E <- list()
+mydf_centering_E <- list()
+for (k in 1:N){
+  mydf_E[[k]]  <- mydf[[k]] %>%select(ends_with("_E"))
+  mydf_centering_E[[k]] <- ( mydf_E[[k]] - matrix(rowMeans(mydf_E[[k]]), nrow = nrow( mydf_E[[k]]), ncol = ncol( mydf_E[[k]]), byrow = FALSE ))   ##row centering for E risks
+}
+
+mydf_P <- list()
+mydf_centering_P <- list()
+for (k in 1:N){
+  mydf_P[[k]]  <- mydf[[k]] %>%select(ends_with("_P"))
+  mydf_centering_P[[k]] <- ( mydf_P[[k]] - matrix(rowMeans( mydf_P[[k]]), nrow = nrow( mydf_P[[k]]), ncol = ncol( mydf_P[[k]]), byrow = FALSE ))   ##row centering for P risks
+}
+
+E_pears <- list()
+P_pears <- list()
+for (k in 1:N){
+  E_pears[[k]] <- lsa::cosine(t(as.matrix(mydf_centering_E[[k]])))    ## pearson network for Economy measure
+  P_pears[[k]] <- lsa::cosine(t(as.matrix(mydf_centering_P[[k]])))    ## pearson network for Policy measure
+}
+
+```
+
+Standardizing network matrices 
+
+```{r Networks ,atrices, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+for (k in 1:N){
+  P_pears[[k]] <- standardise_network_matrix_tri(P_pears[[k]])
+  diag(P_pears[[k]]) <- 0
+  
+  E_pears[[k]] <- standardise_network_matrix_tri(E_pears[[k]])
+  diag(E_pears[[k]]) <- 0
+}
+
+```
+
+Tlasso 1 network function
+
+```{r Tlasso function}
+
+tlasso_1_network <- function(Y, beta0_TLASSO, beta1_TLASSO, A, v, stop_crit){
+  
+  ##defining parameters##
+  p = ncol(Y)
+  Y_sd <- apply(Y, 2, sd)
+  Y <- Y%*%diag(1/Y_sd)
+  #creating a list of matrices psi to be filled at each iteration
+  psi <- list()
+  psi[[1]] <- diag(diag(cov(Y))) #initial value of psi
+  #creating a list vectors mu to be filled at each iteration
+  mu <- list()
+  mu[[1]] <- rep(0,p) #initial value of mu
+  n = nrow(Y) 
+  delta <- rep(NA, n)
+  L <- matrix(-1,p,p) 
+  U <- matrix (1,p,p)
+  diag(U) <- diag(L) <- 0
+  
+  ###EM algorithm###
+  t <- 1 
+  STOP <- FALSE
+  while(!STOP) {
+    
+    t <- t + 1
+    
+    ##E_step##
+    for (i in 1:n){
+      delta[i] <- t(Y[i,]-mu[[t-1]])%*%(solve(psi[[t-1]]))%*%(Y[i,]-mu[[t-1]])   
+    }
+    
+    tau <- (v+p)/(v+delta)   
+    
+    mut <- rep(0,p)
+    for (i in 1:n){
+      mut <- mut+((tau[i])*(Y[i,])/sum(tau))
+    }
+    mu[[t]] <- mut
+    
+    S <- matrix(0,p,p)
+    for (i in 1:n){
+      S <- S+tau[i]*(Y[i,]-mu[[t]])%*%t(Y[i,]-mu[[t]])/n
+    }
+    
+    
+    ##M_step##
+    R <- S
+    GraphicalModel_TLASSO <- golazo (R, L = exp(beta0_TLASSO + beta1_TLASSO*A) * L, U =exp(beta0_TLASSO + beta1_TLASSO*A)* U, tol = 1e-6, verbose=FALSE)
+    
+    ##Updating psi and mu##
+    psi[[t]] <- GraphicalModel_TLASSO$Sig
+    
+    
+    ##stop criteria##
+    print(paste0("Iter: ",t," - tol: ", max(abs(psi[[t]] - psi[[t-1]]))))
+    
+    if(max(abs(psi[[t]] - psi[[t-1]])) < stop_crit){
+      STOP <- TRUE
+    }
+  }
+  psi[[t]] <- cor2cov(psi[[t]], sigma2_vect = Y_sd^2)
+  psi[[t]] <- (psi[[t]]+t(psi[[t]]))/2
+  return(list(psi = psi[[t]], R=R, S=S))
+}
+
+```
+
+#TLASSO
+
+Network matrix: P_pears
+
+```{r GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+N <- length(Y_repeats)
+
+beta0_grid_length <- 10
+beta0_grid_min <- -3
+beta0_grid_max <- 3
+beta1_grid_max <- 3
+beta1_grid_min <- -3
+
+R <- list()
+
+beta_optimise <- list()
+beta0_TLASSO <- rep(NA,N)
+beta_TLASSO_P_pears_full <- matrix(NA, nrow = N, ncol = 2)
+
+ebic_eval_optim_TLASSO <- rep(NA, N)
+
+GraphicalModel <- list()
+Rho_hat_P_pears_full_TLASSO <- list()
+
+EBIC_grid_length <- 10
+ebic_eval_optim_TLASSO_P_pears_full <- rep(NA, N)
+
+time_TLASSO_P_pears_freq.start <- Sys.time()
+for(k in 1:N){
+  
+  n = nrow(Y_repeats[[k]])
+  
+  #### Bayesian Optimisation ####
+  beta_optimise <- list()
+  beta_optimise[[k]] <- BayesianOptimization(
+    FUN = function(beta0, beta1){ebic_eval_network_BayesOpt(Y = lapply(Y_repeats, function(df) as.matrix(df))[[k]], n, beta0, beta1, P_pears[[k]], v=5, stop_crit=1e-3, ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)},
+    bounds = list(beta0 = c(beta0_grid_min, beta0_grid_max),
+                  beta1 = c(beta1_grid_min, beta1_grid_max)),
+    init_points = 5,
+    n_iter = EBIC_grid_length - 5,
+    acq = "ucb", 
+    kernel = list(type = "exponential", power = 2),
+  )
+  
+  
+  beta_TLASSO_P_pears_full[k,] <- beta_optimise[[k]]$Best_Par
+  # JACK: Saving the EBIC 
+  ebic_eval_optim_TLASSO_P_pears_full[k] <- - beta_optimise[[k]]$Best_Value
+  
+  ###################################
+  
+  GraphicalModel[[k]] <- tlasso_1_network (Y = lapply(Y_repeats, function(df) as.matrix(df))[[k]], beta_TLASSO_P_pears_full[k,1], beta_TLASSO_P_pears_full[k,2],P_pears[[k]], v = 5, stop_crit = 1e-3)
+  Rho_hat_P_pears_full_TLASSO[[k]] <- threshold(cov2cor(pd.solve(GraphicalModel[[k]]$psi)), edge.tol)
+}
+time_TLASSO_P_pears_freq.end <- Sys.time()
+
+```
+
+Analysis
+
+```{r Analysis, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+beta_TLASSO_P_pears_full
+
+ebic_eval_optim_TLASSO_P_pears_full
+
+n_edges_TLASSO_P_pears <- rep(NA,N)
+for (k in 1:N){
+  n_edges_TLASSO_P_pears[k] <- sum(Rho_hat_P_pears_full_TLASSO[[k]][lower.tri((Rho_hat_P_pears_full_TLASSO[[k]]))] != 0) # number of edges
+}
+
+time_TLASSO_P_pears_freq1 <- time_TLASSO_P_pears_freq.end - time_TLASSO_P_pears_freq.start
+time_TLASSO_P_pears_freq <- round(time_TLASSO_P_pears_freq1/N, 3)
+time_TLASSO_P_pears_freq
+
+```
+
+Minimum Variance function
+
+```{r Minimum-Variance functions, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+minimum_variance_portfolio <- function (cov.Rt){
+  one.vec <- rep(1,nrow(cov.Rt))
+  num <- solve(cov.Rt) %*% one.vec
+  den <- as.numeric(t(one.vec) %*% num)
+  return(num/den)
+}
+
+```
+
+Expected return function
+
+```{r Expected Return function, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+expected_return_portfolio_minimum_variance <- function (cov.Rt, mean){
+  one.vec <- rep(1,nrow(cov.Rt))
+  num <- as.numeric(t(one.vec) %*% solve(cov.Rt) %*% mean)
+  den <- as.numeric(t(one.vec) %*% solve(cov.Rt) %*% one.vec)
+  return(num/den)
+}
+
+```
+
+Defining baseline (equally weighted stocks)
+
+```{r Defining baseline, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+p <- vector()
+for (k in 1:N){
+  p[k] <- ncol(Y_repeats[[k]])
+}
+
+mean <- list()
+for (k in 1:N){
+  mean[[k]] <- colMeans(Y_repeats[[k]])
+}
+
+weights_b<-list()
+for (k in 1:N){
+  weights_b[[k]] <- rep(1/p[k],p[k])
+}
+
+#the baseline is the target return rate for the mean variance portfolio  
+baseline_portfolio <- rep(NA,N)   
+for (k in 1:N){
+  baseline_portfolio[k] <- sum(mean[[k]] %*% weights_b[[k]])
+}
+
+```
+
+Estimating Sigma 
+
+```{r estimating Sigma with GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+v = 5  #degrees of freedom
+
+Sigma_hat_TLASSO_P_pears <- list()  
+for (k in 1:N){
+  Sigma_hat_TLASSO_P_pears[[k]] <- (cor2cov(Rho_hat_P_pears_full_TLASSO[[k]], sigma2_vect = (apply(lapply(Y_repeats, function(df) as.matrix(df))[[k]], 2, sd))^2))*(v/(v-2))
+}
+
+```
+
+Estimating weights
+
+```{r Weights, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+weights_minimum_variance_TLASSO_P_pears <- list()
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_P_pears[[k]] <- minimum_variance_portfolio(Sigma_hat_TLASSO_P_pears[[k]]) 
+}
+
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_P_pears[[k]] <- weights_minimum_variance_TLASSO_P_pears[[k]]/sum(weights_minimum_variance_TLASSO_P_pears[[k]])
+}
+
+#mean variance
+weights_mean_variance_TLASSO_P_pears <- list()
+for (k in 1:N){
+  weights_mean_variance_TLASSO_P_pears[[k]] <- mvPortfolio(mean[[k]], Sigma_hat_TLASSO_P_pears[[k]], min.return=baseline_portfolio[k])
+}
+
+```
+
+Estimating expected return portfolio
+
+```{r Expected return portfolio, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+expected_return_portfolio_minimum_variance_TLASSO_P_pears <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_minimum_variance_TLASSO_P_pears[k] <- expected_return_portfolio_minimum_variance(Sigma_hat_TLASSO_P_pears[[k]], mean[[k]])
+}
+
+#mean variance
+expected_return_portfolio_mean_variance_TLASSO_P_pears <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_mean_variance_TLASSO_P_pears[k] <- sum(weights_mean_variance_TLASSO_P_pears[[k]]*mean[[k]])
+}
+
+```
+
+Two portfolio solution
+
+```{r Two portfolio solution, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#it makes the expected return portfolio equal to the baseline we defined before 
+
+W_mk <- list()
+for (k in 1:N){
+  one.vec <- rep(1,nrow(Sigma_hat_TLASSO_P_pears[[k]]))
+  W_mk[[k]] <- (mean[[k]]%*%solve(Sigma_hat_TLASSO_P_pears[[k]]))/(as.numeric(t(one.vec[k]) %*% mean[[k]] %*% solve(Sigma_hat_TLASSO_P_pears[[k]])))
+}
+
+v_2PS_TLASSO_P_pears <- list()
+for (k in 1:N){
+  v_2PS_TLASSO_P_pears[[k]] <- weights_mean_variance_TLASSO_P_pears[[k]]-weights_minimum_variance_TLASSO_P_pears[[k]]
+}
+
+alpha_2PS_TLASSO_P_pears <- rep(NA,N)
+for (k in 1:N){
+  alpha_2PS_TLASSO_P_pears[k] <- ((sum(mean[[k]])/p[k])-(t(mean[[k]]) %*% weights_minimum_variance_TLASSO_P_pears[[k]]))/(t(mean[[k]]) %*% v_2PS_TLASSO_P_pears[[k]])
+}
+
+```
+
+Plot Sigma and Rho matrices
+
+```{r Plot Sigma matrix, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+matrixplot = function(m) {
+  require(ggplot2)
+  require(reshape2)
+  
+  p = nrow(m)
+  
+  m.mat = data.frame(Var1=rep(1:p,p),
+                     Var2=rep(1:p,each=p),
+                     Theta=as.vector(t(m)[,p:1]))
+  
+  pl = ggplot() + 
+    geom_tile(data = m.mat, aes(x=Var1, y=as.numeric(Var2), fill=Theta)) + ylab('') + xlab('') +
+    scale_fill_gradient2(low="red",high="blue",mid="white",midpoint=0) +
+    geom_rect(aes(ymin=0.5,ymax=p+0.5,xmin=0.5,xmax=p+0.5),col="black",fill=NA,linetype='dashed') +
+    theme(panel.grid = element_blank(), 
+          panel.background = element_rect(fill='white'),
+          plot.background = element_rect(color=NA), 
+          axis.title.x=element_blank(), 
+          axis.title.y=element_blank(),
+          axis.ticks=element_blank(),
+          axis.text=element_blank(),
+          text = element_text(size=20), 
+          legend.position = "right") 
+  
+  plot(pl)
+}
+
+for (k in 1:N){
+  matrixplot(Sigma_hat_TLASSO_P_pears[[k]]-diag(NA,p[k]))
+  matrixplot(Rho_hat_P_pears_full_TLASSO[[k]]-diag(NA,p[k]))
+}
+
+```
+
+Loading Fama and French data 
+
+```{r loading Fama and French data}
+
+FF <- read.delim2('F-F_Research_Data_Factors_daily.txt',dec='.')
+
+data_FF<- FF[FF$Year %in% (start_year:end_year),]
+
+FF_repeats = list()
+it = 0
+for (t in start_year:end_year) {
+  it = it+1
+  FF_year = data_FF[data_FF$Year == t,-(1:2)]
+  FF_repeats[[it]] = FF_year
+}
+
+```
+
+Fitting Fama and French regression model and getting fitted values
+
+```{r Fitting Fama and French model}
+
+FF_regression <- list()
+fitted_FF <- list()
+
+for (k in 1:N){
+  Y_year = Y_repeats[[k]]
+  n<-nrow(Y_year)
+  fitted_FF[[k]] = matrix(NA,n,p[k])
+  for (i in 1:p[k])  {
+    fitted_FF[[k]][,i] <- lm((Y_year[,i]-FF_repeats[[k]][[4]])~FF_repeats[[k]][[2]]+FF_repeats[[k]][[3]]+FF_repeats[[k]][[1]])$fitted
+  }
+  FF_regression[[k]] = fitted_FF[[k]]
+}
+
+```
+
+Daily excess returns (residuals of the regression)
+
+```{r Daily excess returns }
+
+Y_repeats_FF <- list()
+for (k in 1:N){
+  for (i in 1:p[k]) {
+    Y_repeats_FF[[k]] <- Y_repeats[[k]]-FF_regression[[k]][,i]
+  }}
+
+```
+
+#TLASSO FF
+
+Network matrix: P_pears
+
+```{r GOLAZO_run, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+N <- length(Y_repeats_FF)
+
+beta0_grid_length <- 10
+beta0_grid_min <- -3
+beta0_grid_max <- 3
+beta1_grid_max <- 3
+beta1_grid_min <- -3
+
+R <- list()
+
+beta_optimise <- list()
+beta0_TLASSO <- rep(NA,N)
+beta_TLASSO_P_pears_full_FF <- matrix(NA, nrow = N, ncol = 2)
+
+GraphicalModel <- list()
+Rho_hat_TLASSO_P_pears_full_FF <- list()
+
+
+EBIC_grid_length <- 10
+ebic_eval_optim_TLASSO_P_pears_full_FF <- rep(NA, N)
+
+time_TLASSO_P_pears_freq.start <- Sys.time()
+for(k in 1:N){
+  
+  n = nrow(Y_repeats_FF[[k]])
+  
+  #### Bayesian Optimisation ####
+  beta_optimise <- list()
+  beta_optimise[[k]] <- BayesianOptimization(
+    FUN = function(beta0, beta1){ebic_eval_network_BayesOpt(Y = lapply(Y_repeats_FF, function(df) as.matrix(df))[[k]], n, beta0, beta1, P_pears[[k]], v=5, stop_crit=1e-3, ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)},
+    bounds = list(beta0 = c(beta0_grid_min, beta0_grid_max),
+                  beta1 = c(beta1_grid_min, beta1_grid_max)),
+    init_points = 5,
+    n_iter = EBIC_grid_length-5,
+    acq = "ucb", 
+    kernel = list(type = "exponential", power = 2),
+  )
+  
+  
+  beta_TLASSO_P_pears_full_FF[k,] <- beta_optimise[[k]]$Best_Par
+  # JACK: Saving the EBIC 
+  ebic_eval_optim_TLASSO_P_pears_full_FF[k] <- - beta_optimise[[k]]$Best_Value
+  
+  ###################################
+  
+  GraphicalModel[[k]] <- tlasso_1_network (Y = lapply(Y_repeats_FF, function(df) as.matrix(df))[[k]], beta_TLASSO_P_pears_full_FF[k,1], beta_TLASSO_P_pears_full_FF[k,2],P_pears[[k]], v = 5, stop_crit = 1e-3)
+  Rho_hat_TLASSO_P_pears_full_FF[[k]] <- threshold(cov2cor(pd.solve(GraphicalModel[[k]]$psi)), edge.tol)
+}
+time_TLASSO_P_pears_freq.end <- Sys.time()
+
+
+```
+
+Analysis
+
+```{r Analysis, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+beta_TLASSO_P_pears_full_FF
+
+ebic_eval_optim_TLASSO_P_pears_full_FF
+
+n_edges_TLASSO_P_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  n_edges_TLASSO_P_pears_FF[k] <- sum(Rho_hat_TLASSO_P_pears_full_FF[[k]][lower.tri((Rho_hat_TLASSO_P_pears_full_FF[[k]]))] != 0) # number of edges
+}
+
+```
+
+Defining baseline (equally weighted stocks)
+
+```{r Defining baseline, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+mean <- list()
+for (k in 1:N){
+  mean[[k]] <- colMeans(Y_repeats_FF[[k]])
+}
+
+weights_b <- list()
+for (k in 1:N){
+  weights_b[[k]] <- rep(1/p[k],p[k])
+}
+
+#the baseline is the target return rate for the mean variance portfolio  
+baseline_portfolio <- rep(NA,N)   
+for (k in 1:N){
+  baseline_portfolio[k] <- sum(mean[[k]] %*% weights_b[[k]])
+}
+
+```
+
+Estimating Sigma
+
+```{r estimating Sigma with GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+Sigma_hat_TLASSO_P_pears_FF <- list()
+v<-5
+for (k in 1:N){
+  Sigma_hat_TLASSO_P_pears_FF[[k]] <- (cor2cov(Rho_hat_TLASSO_P_pears_full_FF[[k]], sigma2_vect = (apply(lapply(Y_repeats_FF, function(df) as.matrix(df))[[k]], 2, sd))^2))*(v/(v-2))
+}
+
+```
+
+Estimating weights
+
+```{r Weights, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+weights_minimum_variance_TLASSO_P_pears_FF <- list()
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_P_pears_FF[[k]] <- minimum_variance_portfolio(Sigma_hat_TLASSO_P_pears_FF[[k]]) 
+}
+
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_P_pears_FF[[k]] <- weights_minimum_variance_TLASSO_P_pears_FF[[k]]/sum(weights_minimum_variance_TLASSO_P_pears_FF[[k]])
+}
+
+#mean variance
+weights_mean_variance_TLASSO_P_pears_FF <- list()
+for (k in 1:N){
+  weights_mean_variance_TLASSO_P_pears_FF[[k]] <- mvPortfolio(mean[[k]], Sigma_hat_TLASSO_P_pears_FF[[k]], min.return=baseline_portfolio[k])
+}
+
+w_2PS_TLASSO_P_pears <- list()
+for (k in 1:N){
+  w_2PS_TLASSO_P_pears[[k]] <- weights_minimum_variance_TLASSO_P_pears[[k]]+(v_2PS_TLASSO_P_pears[[k]]*alpha_2PS_TLASSO_P_pears[k])
+}
+
+expected_return_portfolio_2PS_TLASSO_P_pears <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_2PS_TLASSO_P_pears[k] <- t(mean[[k]])%*%w_2PS_TLASSO_P_pears[[k]]
+}
+
+
+```
+
+Estimating expected return portfolio
+
+```{r Expected return portfolio, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+expected_return_portfolio_minimum_variance_TLASSO_P_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_minimum_variance_TLASSO_P_pears_FF[k] <- expected_return_portfolio_minimum_variance(Sigma_hat_TLASSO_P_pears_FF[[k]], mean[[k]])
+}
+
+#mean variance
+expected_return_portfolio_mean_variance_TLASSO_P_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_mean_variance_TLASSO_P_pears_FF[k] <- sum(weights_mean_variance_TLASSO_P_pears_FF[[k]]*mean[[k]])
+}
+
+```
+
+Two portfolio solution
+
+```{r Two portfolio solution, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#it makes the expected return portfolio equal to the baseline we defined before 
+
+W_mk <- list()
+for (k in 1:N){
+  one.vec <- rep(1,nrow(Sigma_hat_TLASSO_P_pears_FF[[k]]))
+  W_mk[[k]] <- (mean[[k]]%*%solve(Sigma_hat_TLASSO_P_pears_FF[[k]]))/(as.numeric(t(one.vec[k]) %*% mean[[k]] %*% solve(Sigma_hat_TLASSO_P_pears_FF[[k]])))
+}
+
+v_2PS_TLASSO_P_pears_FF <- list()
+for (k in 1:N){
+  v_2PS_TLASSO_P_pears_FF[[k]] <- weights_mean_variance_TLASSO_P_pears_FF[[k]]-weights_minimum_variance_TLASSO_P_pears_FF[[k]]
+}
+
+alpha_2PS_TLASSO_P_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  alpha_2PS_TLASSO_P_pears_FF[k] <- ((sum(mean[[k]])/p[k])-(t(mean[[k]]) %*% weights_minimum_variance_TLASSO_P_pears_FF[[k]]))/(t(mean[[k]]) %*% v_2PS_TLASSO_P_pears_FF[[k]])
+}
+
+w_2PS_TLASSO_P_pears_FF <- list()
+for (k in 1:N){
+  w_2PS_TLASSO_P_pears_FF[[k]] <- weights_minimum_variance_TLASSO_P_pears_FF[[k]]+(v_2PS_TLASSO_P_pears_FF[[k]]*alpha_2PS_TLASSO_P_pears_FF[k])
+}
+
+expected_return_portfolio_2PS_TLASSO_P_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_2PS_TLASSO_P_pears_FF[k] <- t(mean[[k]])%*%w_2PS_TLASSO_P_pears_FF[[k]]
+}
+
+```
+
+Plot Sigma and Rho matrices
+
+```{r Plot Sigma and Rho matrices, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+for (k in 1:N){
+  matrixplot(Sigma_hat_TLASSO_P_pears_FF[[k]]-diag(NA,p[k]))
+  matrixplot(Rho_hat_TLASSO_P_pears_full_FF[[k]]-diag(NA,p[k]))
+}
+
+```
+
+#TLASSO
+
+Network matrix: E_pears
+
+```{r GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+N <- length(Y_repeats)
+
+beta0_grid_length <- 10
+beta0_grid_min <- -3
+beta0_grid_max <- 3
+beta1_grid_max <- 3
+beta1_grid_min <- -3
+
+R <- list()
+beta_optimise <- list()
+beta0_TLASSO <- rep(NA,N)
+beta_TLASSO_E_pears_full <- matrix(NA, nrow = N, ncol = 2)
+
+GraphicalModel <- list()
+Rho_hat_E_pears_full_TLASSO <- list()
+
+EBIC_grid_length <- 10
+ebic_eval_optim_TLASSO_E_pears_full <- rep(NA, N)
+
+time_TLASSO_E_pears_freq.start <- Sys.time()
+for(k in 1:N){
+  
+  n = nrow(Y_repeats[[k]])
+  
+  #### Bayesian Optimisation ####
+  beta_optimise <- list()
+  beta_optimise[[k]] <- BayesianOptimization(
+    FUN = function(beta0, beta1){ebic_eval_network_BayesOpt(Y = lapply(Y_repeats, function(df) as.matrix(df))[[k]], n, beta0, beta1, E_pears[[k]], v=5, stop_crit=1e-3, ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)},
+    bounds = list(beta0 = c(beta0_grid_min, beta0_grid_max),
+                  beta1 = c(beta1_grid_min, beta1_grid_max)),
+    init_points = 5,
+    n_iter = EBIC_grid_length-5,
+    acq = "ucb", 
+    kernel = list(type = "exponential", power = 2),
+  )
+  
+  
+  beta_TLASSO_E_pears_full[k,] <- beta_optimise[[k]]$Best_Par
+  # JACK: Saving the EBIC 
+  ebic_eval_optim_TLASSO_E_pears_full[k] <- - beta_optimise[[k]]$Best_Value
+  
+  ###################################
+  
+  GraphicalModel[[k]] <- tlasso_1_network (Y = lapply(Y_repeats, function(df) as.matrix(df))[[k]], beta_TLASSO_E_pears_full[k,1], beta_TLASSO_E_pears_full[k,2],E_pears[[k]], v = 5, stop_crit = 1e-3)
+  Rho_hat_E_pears_full_TLASSO[[k]] <- threshold(cov2cor(pd.solve(GraphicalModel[[k]]$psi)), edge.tol)
+}
+time_TLASSO_E_pears_freq.end <- Sys.time()
+
+```
+
+Analysis
+
+```{r Analysis, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+beta_TLASSO_E_pears_full
+
+ebic_eval_optim_TLASSO_E_pears_full
+
+n_edges_TLASSO_E_pears <- rep(NA,N)
+for (k in 1:N){
+  n_edges_TLASSO_E_pears[k] <- sum(Rho_hat_E_pears_full_TLASSO[[k]][lower.tri((Rho_hat_E_pears_full_TLASSO[[k]]))] != 0) # number of edges
+}
+
+time_TLASSO_E_pears_freq1 <- time_TLASSO_E_pears_freq.end - time_TLASSO_E_pears_freq.start
+time_TLASSO_E_pears_freq <- round(time_TLASSO_E_pears_freq1/N, 3)
+time_TLASSO_E_pears_freq
+
+```
+
+Minimum Variance function
+
+```{r Minimum-Variance functions, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+minimum_variance_portfolio <- function (cov.Rt){
+  one.vec <- rep(1,nrow(cov.Rt))
+  num <- solve(cov.Rt) %*% one.vec
+  den <- as.numeric(t(one.vec) %*% num)
+  return(num/den)
+}
+
+```
+
+Expected return function
+
+```{r Expected Return function, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+expected_return_portfolio_minimum_variance <- function (cov.Rt, mean){
+  one.vec <- rep(1,nrow(cov.Rt))
+  num <- as.numeric(t(one.vec) %*% solve(cov.Rt) %*% mean)
+  den <- as.numeric(t(one.vec) %*% solve(cov.Rt) %*% one.vec)
+  return(num/den)
+}
+
+```
+
+Defining baseline (equally weighted stocks)
+
+```{r Defining baseline, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+mean <- list()
+for (k in 1:N){
+  mean[[k]] <- colMeans(Y_repeats[[k]])
+}
+
+weights_b <- list()
+for (k in 1:N){
+  weights_b[[k]] <- rep(1/p[k],p[k])
+}
+
+#the baseline is the target return rate for the mean variance portfolio  
+baseline_portfolio <- rep(NA,N)   
+for (k in 1:N){
+  baseline_portfolio[k] <- sum(mean[[k]] %*% weights_b[[k]])
+}
+
+```
+
+Estimating Sigma 
+
+```{r estimating Sigma with GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+v = 5  #degrees of freedom
+
+Sigma_hat_TLASSO_E_pears <- list()  
+for (k in 1:N){
+  Sigma_hat_TLASSO_E_pears[[k]] <- (cor2cov(Rho_hat_E_pears_full_TLASSO[[k]], sigma2_vect = (apply(lapply(Y_repeats, function(df) as.matrix(df))[[k]], 2, sd))^2))*(v/(v-2))
+}
+
+```
+
+Estimating weights
+
+```{r Weights, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+weights_minimum_variance_TLASSO_E_pears <- list()
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_E_pears[[k]] <- minimum_variance_portfolio(Sigma_hat_TLASSO_E_pears[[k]]) 
+}
+
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_E_pears[[k]] <- weights_minimum_variance_TLASSO_E_pears[[k]]/sum(weights_minimum_variance_TLASSO_E_pears[[k]])
+}
+
+#mean variance
+weights_mean_variance_TLASSO_E_pears <- list()
+for (k in 1:N){
+  weights_mean_variance_TLASSO_E_pears[[k]] <- mvPortfolio(mean[[k]], Sigma_hat_TLASSO_E_pears[[k]], min.return=baseline_portfolio[k])
+}
+
+```
+
+Estimating expected return portfolio
+
+```{r Expected return portfolio, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+expected_return_portfolio_minimum_variance_TLASSO_E_pears <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_minimum_variance_TLASSO_E_pears[k] <- expected_return_portfolio_minimum_variance(Sigma_hat_TLASSO_E_pears[[k]], mean[[k]])
+}
+
+#mean variance
+expected_return_portfolio_mean_variance_TLASSO_E_pears <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_mean_variance_TLASSO_E_pears[k] <- sum(weights_mean_variance_TLASSO_E_pears[[k]]*mean[[k]])
+}
+
+```
+
+Two portfolio solution
+
+```{r Two portfolio solution, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#it makes the expected return portfolio equal to the baseline we defined before 
+
+W_mk <- list()
+for (k in 1:N){
+  one.vec <- rep(1,nrow(Sigma_hat_TLASSO_E_pears[[k]]))
+  W_mk[[k]] <- (mean[[k]]%*%solve(Sigma_hat_TLASSO_E_pears[[k]]))/(as.numeric(t(one.vec[k]) %*% mean[[k]] %*% solve(Sigma_hat_TLASSO_E_pears[[k]])))
+}
+
+v_2PS_TLASSO_E_pears <- list()
+for (k in 1:N){
+  v_2PS_TLASSO_E_pears[[k]] <- weights_mean_variance_TLASSO_E_pears[[k]]-weights_minimum_variance_TLASSO_E_pears[[k]]
+}
+
+alpha_2PS_TLASSO_E_pears <- rep(NA,N)
+for (k in 1:N){
+  alpha_2PS_TLASSO_E_pears[k] <- ((sum(mean[[k]])/p[k])-(t(mean[[k]]) %*% weights_minimum_variance_TLASSO_E_pears[[k]]))/(t(mean[[k]]) %*% v_2PS_TLASSO_E_pears[[k]])
+}
+
+```
+
+Plot Sigma and Rho matrices
+
+```{r Plot Sigma matrix, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+matrixplot = function(m) {
+  require(ggplot2)
+  require(reshape2)
+  
+  p = nrow(m)
+  
+  m.mat = data.frame(Var1=rep(1:p,p),
+                     Var2=rep(1:p,each=p),
+                     Theta=as.vector(t(m)[,p:1]))
+  
+  pl = ggplot() + 
+    geom_tile(data = m.mat, aes(x=Var1, y=as.numeric(Var2), fill=Theta)) + ylab('') + xlab('') +
+    scale_fill_gradient2(low="red",high="blue",mid="white",midpoint=0) +
+    geom_rect(aes(ymin=0.5,ymax=p+0.5,xmin=0.5,xmax=p+0.5),col="black",fill=NA,linetype='dashed') +
+    theme(panel.grid = element_blank(), 
+          panel.background = element_rect(fill='white'),
+          plot.background = element_rect(color=NA), 
+          axis.title.x=element_blank(), 
+          axis.title.y=element_blank(),
+          axis.ticks=element_blank(),
+          axis.text=element_blank(),
+          text = element_text(size=20), 
+          legend.position = "right") 
+  
+  plot(pl)
+}
+
+for (k in 1:N){
+  matrixplot(Sigma_hat_TLASSO_E_pears[[k]]-diag(NA,p[k]))
+  matrixplot(Rho_hat_TLASSO_E_pears_full[[k]]-diag(NA,p[k]))
+}
+
+```
+
+
+#TLASSO FF
+
+Network matrix: E_pears
+
+```{r GOLAZO_run, include=TRUE,echo=TRUE, eval=TRUE,cache=TRUE}
+
+N <- length(Y_repeats_FF)
+
+beta0_grid_length <- 10
+beta0_grid_min <- -3
+beta0_grid_max <- 3
+beta1_grid_max <- 3
+beta1_grid_min <- -3
+
+R <- list()
+
+beta_optimise <- list()
+beta0_TLASSO <- rep(NA,N)
+beta_TLASSO_E_pears_full_FF <- matrix(NA, nrow = N, ncol = 2)
+
+GraphicalModel <- list()
+Rho_hat_TLASSO_E_pears_full_FF <- list()
+
+EBIC_grid_length <- 10
+ebic_eval_optim_TLASSO_E_pears_full_FF <- rep(NA, N)
+
+time_TLASSO_E_pears_freq.start <- Sys.time()
+for(k in 1:N){
+  
+  n = nrow(Y_repeats_FF[[k]])
+  
+  #### Bayesian Optimisation ####
+  beta_optimise <- list()
+  beta_optimise[[k]] <- BayesianOptimization(
+    FUN = function(beta0, beta1){ebic_eval_network_BayesOpt(Y = lapply(Y_repeats, function(df) as.matrix(df))[[k]], n, beta0, beta1, E_pears[[k]], v=5, stop_crit=1e-3, ebic.gamma = ebic.gamma, edge.tol = edge.tol, tol = 1e-6)},
+    bounds = list(beta0 = c(beta0_grid_min, beta0_grid_max),
+                  beta1 = c(beta1_grid_min, beta1_grid_max)),
+    init_points = 5,
+    n_iter = EBIC_grid_length-5,
+    acq = "ucb", 
+    kernel = list(type = "exponential", power = 2),
+  )
+  
+  
+  beta_TLASSO_E_pears_full_FF[k,] <- beta_optimise[[k]]$Best_Par
+  # JACK: Saving the EBIC 
+  ebic_eval_optim_TLASSO_E_pears_full_FF[k] <- - beta_optimise[[k]]$Best_Value
+  
+  ###################################
+  
+  GraphicalModel[[k]] <- tlasso_1_network (Y = lapply(Y_repeats, function(df) as.matrix(df))[[k]], beta_TLASSO_E_pears_full_FF[k,1], beta_TLASSO_E_pears_full_FF[k,2],E_pears[[k]], v = 5, stop_crit = 1e-3)
+  Rho_hat_TLASSO_E_pears_full_FF[[k]] <- threshold(cov2cor(pd.solve(GraphicalModel[[k]]$psi)), edge.tol)
+}
+time_TLASSO_E_pears_freq.end <- Sys.time()
+
+
+```
+
+Analysis
+
+```{r Analysis, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+beta_TLASSO_E_pears_full_FF
+
+ebic_eval_optim_TLASSO_E_pears_full_FF
+
+n_edges_TLASSO_E_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  n_edges_TLASSO_E_pears_FF[k] <- sum(Rho_hat_TLASSO_E_pears_full_FF[[k]][lower.tri((Rho_hat_TLASSO_E_pears_full_FF[[k]]))] != 0) # number of edges
+}
+
+```
+
+Defining baseline (equally weighted stocks)
+
+```{r Defining baseline, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+mean <- list()
+for (k in 1:N){
+  mean[[k]] <- colMeans(Y_repeats_FF[[k]])
+}
+
+weights_b <- list()
+for (k in 1:N){
+  weights_b[[k]] <- rep(1/p[k],p[k])
+}
+
+#the baseline is the target return rate for the mean variance portfolio  
+baseline_portfolio <- rep(NA,N)   
+for (k in 1:N){
+  baseline_portfolio[k] <- sum(mean[[k]] %*% weights_b[[k]])
+}
+
+```
+
+Estimating Sigma
+
+```{r estimating Sigma with GOLAZO, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+v<-5     #degrees of freedom
+
+Sigma_hat_TLASSO_E_pears_FF <- list()
+for (k in 1:N){
+  Sigma_hat_TLASSO_E_pears_FF[[k]] <- (cor2cov(Rho_hat_TLASSO_E_pears_full_FF[[k]], sigma2_vect = (apply(lapply(Y_repeats_FF, function(df) as.matrix(df))[[k]], 2, sd))^2))*(v/(v-2))
+}
+
+```
+
+Estimating weights
+
+```{r Weights, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+weights_minimum_variance_TLASSO_E_pears_FF <- list()
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_E_pears_FF[[k]] <- minimum_variance_portfolio(Sigma_hat_TLASSO_E_pears_FF[[k]]) 
+}
+
+for (k in 1:N){
+  weights_minimum_variance_TLASSO_E_pears_FF[[k]] <- weights_minimum_variance_TLASSO_E_pears_FF[[k]]/sum(weights_minimum_variance_TLASSO_E_pears_FF[[k]])
+}
+
+#mean variance
+weights_mean_variance_TLASSO_E_pears_FF <- list()
+for (k in 1:N){
+  weights_mean_variance_TLASSO_E_pears_FF[[k]] <- mvPortfolio(mean[[k]], Sigma_hat_TLASSO_E_pears_FF[[k]], min.return=baseline_portfolio[k])
+}
+
+w_2PS_TLASSO_E_pears <- list()
+for (k in 1:N){
+  w_2PS_TLASSO_E_pears[[k]] <- weights_minimum_variance_TLASSO_E_pears[[k]]+(v_2PS_TLASSO_E_pears[[k]]*alpha_2PS_TLASSO_E_pears[k])
+}
+
+expected_return_portfolio_2PS_TLASSO_E_pears <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_2PS_TLASSO_E_pears[k] <- t(mean[[k]])%*%w_2PS_TLASSO_E_pears[[k]]
+}
+
+
+```
+
+Estimating expected return portfolio
+
+```{r Expected return portfolio, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#minimum variance
+expected_return_portfolio_minimum_variance_TLASSO_E_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_minimum_variance_TLASSO_E_pears_FF[k] <- expected_return_portfolio_minimum_variance(Sigma_hat_TLASSO_E_pears_FF[[k]], mean[[k]])
+}
+
+#mean variance
+expected_return_portfolio_mean_variance_TLASSO_E_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_mean_variance_TLASSO_E_pears_FF[k] <- sum(weights_mean_variance_TLASSO_E_pears_FF[[k]]*mean[[k]])
+}
+
+```
+
+Two portfolio solution
+
+```{r Two portfolio solution, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+#it makes the expected return portfolio equal to the baseline we defined before 
+
+W_mk <- list()
+for (k in 1:N){
+  one.vec <- rep(1,nrow(Sigma_hat_TLASSO_E_pears_FF[[k]]))
+  W_mk[[k]] <- (mean[[k]]%*%solve(Sigma_hat_TLASSO_E_pears_FF[[k]]))/(as.numeric(t(one.vec[k]) %*% mean[[k]] %*% solve(Sigma_hat_TLASSO_E_pears_FF[[k]])))
+}
+
+v_2PS_TLASSO_E_pears_FF <- list()
+for (k in 1:N){
+  v_2PS_TLASSO_E_pears_FF[[k]] <- weights_mean_variance_TLASSO_E_pears_FF[[k]]-weights_minimum_variance_TLASSO_E_pears_FF[[k]]
+}
+
+alpha_2PS_TLASSO_E_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  alpha_2PS_TLASSO_E_pears_FF[k] <- ((sum(mean[[k]])/p[k])-(t(mean[[k]]) %*% weights_minimum_variance_TLASSO_E_pears_FF[[k]]))/(t(mean[[k]]) %*% v_2PS_TLASSO_E_pears_FF[[k]])
+}
+
+w_2PS_TLASSO_E_pears_FF <- list()
+for (k in 1:N){
+  w_2PS_TLASSO_E_pears_FF[[k]] <- weights_minimum_variance_TLASSO_E_pears_FF[[k]]+(v_2PS_TLASSO_E_pears_FF[[k]]*alpha_2PS_TLASSO_E_pears_FF[k])
+}
+
+expected_return_portfolio_2PS_TLASSO_E_pears_FF <- rep(NA,N)
+for (k in 1:N){
+  expected_return_portfolio_2PS_TLASSO_E_pears_FF[k] <- t(mean[[k]])%*%w_2PS_TLASSO_E_pears_FF[[k]]
+}
+
+```
+
+Plot Sigma and Rho matrices
+
+```{r Plot Sigma and Rho matrices, include=TRUE,echo=TRUE, eval=TRUE,cache=FALSE}
+
+for (k in 1:N){
+  matrixplot(Sigma_hat_TLASSO_E_pears_FF[[k]]-diag(NA,p[k]))
+  matrixplot(Rho_hat_TLASSO_E_pears_full_FF[[k]]-diag(NA,p[k]))
+}
+
+```
+
+#Actual portfolio return rate
+
+Loading data years after
+
+```{r Loading data years after}
+
+start_year = 1986  #start_year we had before + 1
+end_year = 2016    #end_year we had before + 1
+
+Y_repeats_actual = list()
+Y_prova = list()
+k<-seq(from=1, to=N, by=1)
+t<-seq(from=start_year, to=end_year, by=1)
+for (k in 1:N){
+  Y_prova[[k]]<-Y[[k]][Y[[k]]$Year == t[k],-2]  #time series with the column 'dates'
+  Y_repeats_actual[[k]] = Y[[k]][Y[[k]]$Year == t[k],-(1:2)]
+} 
+
+```
+
+#TLASSO 
+
+Network matrix:P_pears
+
+```{r Actual portfolio return rate GLASSO}
+
+r <- list()   #actual return rates of stocks per year
+for (k in 1:N){
+  r[[k]] <- colSums(Y_repeats_actual[[k]])
+}
+
+#minimum variance
+portfolio_actual_return_rate_minimum_variance_TLASSO_P_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_minimum_variance_TLASSO_P_pears[k] <- sum(weights_minimum_variance_TLASSO_P_pears[[k]] * r[[k]])
+}
+
+#mean variance
+portfolio_actual_return_rate_mean_variance_TLASSO_P_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_mean_variance_TLASSO_P_pears[k] <- sum(weights_mean_variance_TLASSO_P_pears[[k]] * r[[k]])
+}
+
+#cumulative actual portfolio return rate with minimum and mean variance 
+sum(portfolio_actual_return_rate_minimum_variance_TLASSO_P_pears)
+sum(portfolio_actual_return_rate_mean_variance_TLASSO_P_pears)
+
+#cumulative actual portfolio return rate with minimum and mean variance restricted to some years (When the BIC is the lowest among all the other methods)
+index <- c(17,18,19)
+tosum_minimumvariance <- portfolio_actual_return_rate_minimum_variance_TLASSO_P_pears[index]
+sum(tosum_minimumvariance)
+tosum_meanvariance <- portfolio_actual_return_rate_mean_variance_TLASSO_P_pears[index]
+sum(tosum_meanvariance)
+
+```
+
+Network matrix:E_pears
+
+```{r Actual portfolio return rate GLASSO}
+
+r <- list()   #actual return rates of stocks per year
+for (k in 1:N){
+  r[[k]] <- colSums(Y_repeats_actual[[k]])
+}
+
+#minimum variance
+portfolio_actual_return_rate_minimum_variance_TLASSO_E_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_minimum_variance_TLASSO_E_pears[k] <- sum(weights_minimum_variance_TLASSO_E_pears[[k]] * r[[k]])
+}
+
+#mean variance
+portfolio_actual_return_rate_mean_variance_TLASSO_E_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_mean_variance_TLASSO_E_pears[k] <- sum(weights_mean_variance_TLASSO_E_pears[[k]] * r[[k]])
+}
+
+#cumulative actual portfolio return rate with minimum and mean variance 
+sum(portfolio_actual_return_rate_minimum_variance_TLASSO_E_pears)
+sum(portfolio_actual_return_rate_mean_variance_TLASSO_E_pears)
+
+#cumulative actual portfolio return rate with minimum and mean variance restricted to some years (When the BIC is the lowest among all the other methods)
+index <- c(16,27)
+tosum_minimumvariance <- portfolio_actual_return_rate_minimum_variance_TLASSO_E_pears[index]
+sum(tosum_minimumvariance)
+tosum_meanvariance <- portfolio_actual_return_rate_mean_variance_TLASSO_E_pears[index]
+sum(tosum_meanvariance)
+
+```
+
+#TLASSO FF 
+
+Network matrix: P_pears
+
+```{r Actual portfolio return rate GLASSO FF}
+
+#minimum variance
+portfolio_actual_return_rate_minimum_variance_TLASSO_FF_P_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_minimum_variance_TLASSO_FF_P_pears[k] <- sum(weights_minimum_variance_TLASSO_P_pears_FF[[k]] * r[[k]])
+}
+
+#mean variance
+portfolio_actual_return_rate_mean_variance_TLASSO_FF_P_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_mean_variance_TLASSO_FF_P_pears[k] <- sum(weights_mean_variance_TLASSO_P_pears_FF[[k]] * r[[k]])
+}
+
+#cumulative actual portfolio return rate with minimum and mean variance 
+sum(portfolio_actual_return_rate_minimum_variance_TLASSO_FF_P_pears)
+sum(portfolio_actual_return_rate_mean_variance_TLASSO_FF_P_pears)
+
+#cumulative actual portfolio return rate with minimum and mean variance restricted to some years (When the BIC is the lowest among all the other methods)
+index <- c(2,4,5,11,12,13,26,28,29)
+tosum_minimumvariance <- portfolio_actual_return_rate_minimum_variance_TLASSO_FF_P_pears[index]
+sum(tosum_minimumvariance)
+tosum_meanvariance <- portfolio_actual_return_rate_mean_variance_TLASSO_FF_P_pears[index]
+sum(tosum_meanvariance)
+
+```
+
+Network matrix: E_pears
+
+```{r Actual portfolio return rate GLASSO FF}
+
+#minimum variance
+portfolio_actual_return_rate_minimum_variance_TLASSO_FF_E_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_minimum_variance_TLASSO_FF_E_pears[k] <- sum(weights_minimum_variance_TLASSO_E_pears_FF[[k]] * r[[k]])
+}
+
+#mean variance
+portfolio_actual_return_rate_mean_variance_TLASSO_FF_E_pears <- rep(NA,N)
+for (k in 1:N){
+  portfolio_actual_return_rate_mean_variance_TLASSO_FF_E_pears[k] <- sum(weights_mean_variance_TLASSO_E_pears_FF[[k]] * r[[k]])
+}
+
+#cumulative actual portfolio return rate with minimum and mean variance 
+sum(portfolio_actual_return_rate_minimum_variance_TLASSO_FF_E_pears)
+sum(portfolio_actual_return_rate_mean_variance_TLASSO_FF_E_pears)
+
+#cumulative actual portfolio return rate with minimum and mean variance restricted to some years (When the BIC is the lowest among all the other methods)
+index <- c(10,15)
+tosum_minimumvariance <- portfolio_actual_return_rate_minimum_variance_TLASSO_FF_E_pears[index]
+sum(tosum_minimumvariance)
+tosum_meanvariance <- portfolio_actual_return_rate_mean_variance_TLASSO_FF_E_pears[index]
+sum(tosum_meanvariance)
+
+```
+
+#Performance
+
+Volatily
+
+```{r Performance Volatily}
+
+for (k in 1:N){
+  row.names(Y_prova[[k]])<-Y_prova[[k]][,1]
+}
+
+#minimum variance
+daily_portfolio_return_minimum_variance_P_pears <- list()
+daily_portfolio_return_minimum_variance_E_pears <- list()
+daily_portfolio_return_minimum_variance_E_pears_FF <- list()
+daily_portfolio_return_minimum_variance_P_pears_FF <- list()
+
+for (k in 1:31){
+  daily_portfolio_return_minimum_variance_P_pears[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_minimum_variance_TLASSO_P_pears[k]), verbose=TRUE)
+  daily_portfolio_return_minimum_variance_E_pears[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_minimum_variance_TLASSO_E_pears[k]), verbose=TRUE)
+  daily_portfolio_return_minimum_variance_P_pears_FF[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_minimum_variance_TLASSO_P_pears_FF[k]), verbose=TRUE)
+  daily_portfolio_return_minimum_variance_E_pears_FF[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_minimum_variance_TLASSO_E_pears_FF[k]), verbose=TRUE)
+}
+
+StdDev_minimum_variance_P_pears_TLASSO <- vector()
+StdDev_minimum_variance_E_pears_TLASSO <- vector()
+StdDev_minimum_variance_E_pears_FF_TLASSO <- vector()
+StdDev_minimum_variance_P_pears_FF_TLASSO <- vector()
+
+for (k in 1:31){
+  StdDev_minimum_variance_P_pears_TLASSO[k] <- StdDev(daily_portfolio_return_minimum_variance_P_pears[[k]]$returns)
+  StdDev_minimum_variance_E_pears_TLASSO[k] <- StdDev(daily_portfolio_return_minimum_variance_E_pears[[k]]$returns)
+  StdDev_minimum_variance_E_pears_FF_TLASSO[k] <- StdDev(daily_portfolio_return_minimum_variance_E_pears_FF[[k]]$returns)
+  StdDev_minimum_variance_P_pears_FF_TLASSO[k] <- StdDev(daily_portfolio_return_minimum_variance_P_pears_FF[[k]]$returns)
+}
+
+mean(StdDev_minimum_variance_P_pears_TLASSO)
+mean(StdDev_minimum_variance_E_pears_TLASSO)
+mean(StdDev_minimum_variance_E_pears_FF_TLASSO)
+mean(StdDev_minimum_variance_P_pears_FF_TLASSO)
+
+#mean variance
+daily_portfolio_return_mean_variance_P_pears_TLASSO <- list()
+daily_portfolio_return_mean_variance_E_pears_TLASSO <- list()
+daily_portfolio_return_mean_variance_E_pears_FF_TLASSO <- list()
+daily_portfolio_return_mean_variance_P_pears_FF_TLASSO <- list()
+
+for (k in 1:31){
+  daily_portfolio_return_mean_variance_P_pears_TLASSO[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_mean_variance_TLASSO_P_pears[k]), verbose=TRUE)
+  daily_portfolio_return_mean_variance_E_pears_TLASSO[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_mean_variance_TLASSO_E_pears[k]), verbose=TRUE)
+  daily_portfolio_return_mean_variance_E_pears_FF_TLASSO[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_mean_variance_TLASSO_E_pears_FF[k]), verbose=TRUE)
+  daily_portfolio_return_mean_variance_P_pears_FF_TLASSO[[k]] <- Return.portfolio(Y_prova[[k]][,2:(p[k]+1)],weights=unlist(weights_mean_variance_TLASSO_P_pears_FF[k]), verbose=TRUE)
+}
+
+StdDev_mean_variance_P_pears_TLASSO <- vector()
+StdDev_mean_variance_E_pears_TLASSO <- vector()
+StdDev_mean_variance_E_pears_FF_TLASSO <- vector()
+StdDev_mean_variance_P_pears_FF_TLASSO <- vector()
+
+for (k in 1:31){
+  StdDev_mean_variance_P_pears_TLASSO[k] <- StdDev(daily_portfolio_return_mean_variance_P_pears_TLASSO[[k]]$returns)
+  StdDev_mean_variance_E_pears_TLASSO[k] <- StdDev(daily_portfolio_return_mean_variance_E_pears_TLASSO[[k]]$returns)
+  StdDev_mean_variance_E_pears_FF_TLASSO[k] <- StdDev(daily_portfolio_return_mean_variance_E_pears_FF_TLASSO[[k]]$returns)
+  StdDev_mean_variance_P_pears_FF_TLASSO[k] <- StdDev(daily_portfolio_return_mean_variance_P_pears_FF_TLASSO[[k]]$returns)
+}
+
+mean(StdDev_mean_variance_P_pears_TLASSO)
+mean(StdDev_mean_variance_E_pears_TLASSO)
+mean(StdDev_mean_variance_E_pears_FF_TLASSO)
+mean(StdDev_mean_variance_P_pears_FF_TLASSO)
+
+```
+
+Sharpe Ratio
+
+```{r Performance Sharpe Ratio}
+
+#minimum variance
+Sharpe_ratio_minimum_variance_P_pears_TLASSO <- vector()
+Sharpe_ratio_minimum_variance_E_pears_TLASSO <-vector()
+Sharpe_ratio_minimum_variance_E_pears_FF_TLASSO <-vector()
+Sharpe_ratio_minimum_variance_P_pears_FF_TLASSO <- vector()
+
+for (k in 1:N){
+  row.names(Y_prova[[k]])<-Y_prova[[k]][,1]
+}
+
+for (k in 1:N){
+  Sharpe_ratio_minimum_variance_P_pears_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_minimum_variance_TLASSO_P_pears[k]))
+  Sharpe_ratio_minimum_variance_E_pears_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_minimum_variance_TLASSO_E_pears[k]))
+  Sharpe_ratio_minimum_variance_E_pears_FF_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_minimum_variance_TLASSO_E_pears_FF[k]))
+  Sharpe_ratio_minimum_variance_P_pears_FF_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_minimum_variance_TLASSO_P_pears_FF[k]))
+}
+
+mean(Sharpe_ratio_minimum_variance_P_pears_TLASSO)
+mean(Sharpe_ratio_minimum_variance_E_pears_TLASSO)
+mean(Sharpe_ratio_minimum_variance_E_pears_FF_TLASSO)
+mean(Sharpe_ratio_minimum_variance_P_pears_FF_TLASSO)
+
+#mean variance
+Sharpe_ratio_mean_variance_P_pears_TLASSO <- vector()
+Sharpe_ratio_mean_variance_E_pears_TLASSO <- vector()
+Sharpe_ratio_mean_variance_E_pears_FF_TLASSO <- vector()
+Sharpe_ratio_mean_variance_P_pears_FF_TLASSO <- vector()
+
+for (k in 1:N){
+  Sharpe_ratio_mean_variance_P_pears_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_mean_variance_TLASSO_P_pears[k]))
+  Sharpe_ratio_mean_variance_E_pears_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_mean_variance_TLASSO_E_pears[k]))
+  Sharpe_ratio_mean_variance_E_pears_FF_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_mean_variance_TLASSO_E_pears_FF[k]))
+  Sharpe_ratio_mean_variance_P_pears_FF_TLASSO[k] <- SharpeRatio((Y_prova[[k]][,2:(p[k]+1),drop=FALSE]), FUN= "StdDev", weights = unlist(weights_mean_variance_TLASSO_P_pears_FF[k]))
+}
+
+mean(Sharpe_ratio_mean_variance_P_pears_TLASSO)
+mean(Sharpe_ratio_mean_variance_E_pears_TLASSO)
+mean(Sharpe_ratio_mean_variance_E_pears_FF_TLASSO)
+mean(Sharpe_ratio_mean_variance_P_pears_FF_TLASSO)
+
+```
+
+Herfindal Index
+
+```{r Herfindal Index}
+
+library(PortfolioAnalytics)
+
+#minimum variance
+HHI_minimum_variance_P_pears_TLASSO <- vector()
+HHI_minimum_variance_E_pears_TLASSO <- vector()
+HHI_minimum_variance_E_pears_FF_TLASSO <- vector()
+HHI_minimum_variance_P_pears_FF_TLASSO <- vector()
+
+for (k in 1:N){
+  HHI_minimum_variance_P_pears_TLASSO[k] <- HHI(unlist(weights_minimum_variance_TLASSO_P_pears[[k]]))
+  HHI_minimum_variance_E_pears_TLASSO[k] <- HHI(unlist(weights_minimum_variance_TLASSO_E_pears[[k]]))
+  HHI_minimum_variance_E_pears_FF_TLASSO[k] <- HHI(unlist(weights_minimum_variance_TLASSO_E_pears_FF[[k]]))
+  HHI_minimum_variance_P_pears_FF_TLASSO[k] <- HHI(unlist(weights_minimum_variance_TLASSO_P_pears_FF[[k]]))
+}
+
+mean(HHI_minimum_variance_P_pears_TLASSO)
+mean(HHI_minimum_variance_E_pears_TLASSO)
+mean(HHI_minimum_variance_E_pears_FF_TLASSO)
+mean(HHI_minimum_variance_P_pears_FF_TLASSO)
+
+#mean variance
+HHI_mean_variance_P_pears_TLASSO <- vector()
+HHI_mean_variance_E_pears_TLASSO <- vector()
+HHI_mean_variance_E_pears_FF_TLASSO <- vector()
+HHI_mean_variance_P_pears_FF_TLASSO <- vector()
+
+for (k in 1:N){
+  HHI_mean_variance_P_pears_TLASSO[k] <- HHI(unlist(weights_mean_variance_TLASSO_P_pears[[k]]))
+  HHI_mean_variance_E_pears_TLASSO[k] <- HHI(unlist(weights_mean_variance_TLASSO_E_pears[[k]]))
+  HHI_mean_variance_E_pears_FF_TLASSO[k] <- HHI(unlist(weights_mean_variance_TLASSO_E_pears_FF[[k]]))
+  HHI_mean_variance_P_pears_FF_TLASSO[k] <- HHI(unlist(weights_mean_variance_TLASSO_P_pears_FF[[k]]))
+}
+
+mean(HHI_mean_variance_P_pears_TLASSO)
+mean(HHI_mean_variance_E_pears_TLASSO)
+mean(HHI_mean_variance_E_pears_FF_TLASSO)
+mean(HHI_mean_variance_P_pears_FF_TLASSO)
+
+```
+
